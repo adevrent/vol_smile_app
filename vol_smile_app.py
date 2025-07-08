@@ -110,21 +110,21 @@ if st.button("Compute"):
     st.write(f"**{sigma_K * 100:.2f}%**")
 
     # ── Prices Table ─────────────────────────────────────────────────────────
-    prices_df = pd.DataFrame({
-        "Leg":   [f"{call_put} (domestic)", f"{call_put} (foreign)"],
-        "Value": [BS_results["v_dom"],     BS_results["v_for"]]
+    iv_prices_df = pd.DataFrame({
+        "Param":   [f"Implied Vol @ K = {K:.2f}", "FOR price", f"DOM price"],
+        "Value": [f"{(np.round(sigma_K*100, 4))} %", f"{(np.round(BS_results["v_for"]*100, 4))} %", f"{(np.round(BS_results["v_dom"]*100, 4))} %"]
     })
-    st.subheader("Prices")
-    st.table(prices_df)
+    st.subheader("IV & Prices")
+    st.table(iv_prices_df)
 
     # ── Real Greeks Table ────────────────────────────────────────────────────
     real_df = pd.DataFrame({
         "Greek": ["Spot Δ", "Forward Δ", "Spot Δ (PA)", "Forward Δ (PA)"],
         "Value": [
-            BS_results["delta_S"],
-            BS_results["delta_fwd"],
-            BS_results["delta_S_pa"],
-            BS_results["delta_fwd_pa"]
+            f"{(np.round(BS_results["delta_S"]*100, 4))} %",
+            f"{(np.round(BS_results["delta_fwd"]*100, 4))} %",
+            f"{(np.round(BS_results["delta_S_pa"]*100, 4))} %",
+            f"{(np.round(BS_results["delta_fwd_pa"]*100, 4))} %"
         ]
     })
     st.subheader("Real Greeks")

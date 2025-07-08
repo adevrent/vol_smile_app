@@ -1,0 +1,13 @@
+pandas
+numpy
+matplotlib
+requests
+openpyxl
+xlwings
+bs4
+yfinance
+beautifulsoup4
+curl_cffi
+QuantLib
+scipy
+streamlit

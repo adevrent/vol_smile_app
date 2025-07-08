@@ -6,7 +6,7 @@ import scipy.stats as ss
 import pandas as pd
 import matplotlib.pyplot as plt
 
-st.title("Volatility Smile Calculator")
+st.title("SPI Vol Smile Calculator - Atakan Devrent")
 
 # 1) Day-count bases
 basis_map = {

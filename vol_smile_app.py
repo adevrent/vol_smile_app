@@ -1,5 +1,3 @@
-```python
-# vol_smile_app.py
 import streamlit as st
 import QuantLib as ql
 from FX_option_pricer import OptionParams

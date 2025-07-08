@@ -4,6 +4,7 @@ from FX_option_pricer import OptionParams
 import numpy as np
 import scipy.stats as ss
 import pandas as pd
+import matplotlib.pyplot as plt
 
 st.title("Volatility Smile Calculator")
 
@@ -140,6 +141,11 @@ if st.button("Compute"):
     })
     st.subheader("TV Greeks")
     st.table(tv_df)
+
+    # Smile Plot ─────────────────────────────────────────────────────────
+    st.subheader("Volatility Smile")
+    fig = params.plot_smile_K()
+    st.pyplot(fig)
 
     # st.subheader("Results")
     # st.write(f"• Implied Vol @ K={K:.4f}: {sigma_K*100:.2f}%")

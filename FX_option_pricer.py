@@ -527,7 +527,7 @@ class OptionParams:
             print("sigma_S not set, optimizing...")
             self.optimize_sigma_S()
 
-        K_arr = np.linspace(self.K_ATM - self.K_ATM/4, self.K_ATM + self.K_ATM/4, 20)
+        K_arr = np.linspace(self.K_ATM - self.K_ATM/5, self.K_ATM + self.K_ATM/5, 50)
         sigmas = np.array([self.find_SPI_sigma_K(self.simple_call_put(K), K)*100 for K in K_arr])
 
         plt.figure(figsize=(10, 6))
@@ -539,7 +539,8 @@ class OptionParams:
         plt.ylabel('Implied Volatility')
         plt.legend()
         plt.grid()
-        plt.show()
+        fig = plt.gcf()
+        return fig
 
     def plot_smile_delta(self):  # TODO
         """
@@ -620,7 +621,7 @@ myparams = OptionParams(
     sigma_SQ=1.75/100,  # Quoted Strangle volatility
     delta_tilde=0.25,  # pillar smile delta, e.g. 0.25 or 0.10
     K_ATM_convention="fwd",  # "fwd", "fwd_delta_neutral", "spot"
-    delta_convention="spot"  # "spot", "spot_pa", "fwd", "fwd_pa"
+    delta_convention="spot_pa"  # "spot", "spot_pa", "fwd", "fwd_pa"
     )
 
 myparams.optimize_sigma_S()  # This will calibrate sigma_S
@@ -637,3 +638,5 @@ v_for = myparams.BS(call_put, K, sigma_K)["v_for"]
 print(f"strike {K} sigma: %", np.round(sigma_K * 100, 4))
 print(f"strike {K} v_for: %", np.round(v_for * 100, 4))
 print(myparams.calc_TV_greeks(call_put, K))  # Calculate and print the TV greeks for the given strike
+fig = myparams.plot_smile_K()  # Plot the implied volatility smile for the SPI model
+fig.show()

@@ -102,18 +102,28 @@ if st.button("Compute"):
     )
 
     # Run your full calibration / smile construction
-    params.optimize_smile()
-    params.set_K_C_P()
+    params.optimize_sigma_S()  # This will calibrate sigma_S
+    params.set_K_C_P()  # This will set K_C and K_P based on the calibrated sigma_S
+
 
     # Compute for the chosen strike & option type
-    iv        = params.implied_volatility(call_put, K)
-    dom_price = params.BS(call_put, K, iv)["v_dom"]
-    for_price= params.BS(call_put, K, iv)["v_for"]
-    delta_v   = params.delta(call_put, K, iv)
-    gamma_v   = params.gamma(call_put, K, iv)
+    sigma_K = params.find_SPI_sigma_K(call_put, K)
+    BS_results = params.BS(call_put, K, sigma_K)
+    TV_greeks = params.calc_TV_greeks(call_put, K)
 
     st.subheader("Results")
-    st.write(f"• **Implied Vol @ K={K:.4f}:** {iv*100:.2f} %")
-    st.write(f"• **{call_put} Price (dom):** {dom_price:.6f}")
-    st.write(f"• **{call_put} Price (for):** {for_price:.6f}")
-    st.write(f"• **Delta:** {delta_v:.6f}    • **Gamma:** {gamma_v:.6f}")
+    st.write(f"• Implied Vol @ K={K:.4f}: {sigma_K*100:.2f}%")
+    st.write(f"• {call_put} Price (for):** {BS_results["v_for"]*100:.4f}%")
+    st.write(f"• {call_put} Price (dom):** {BS_results["v_dom"]*100:.4f}%")
+    print()
+    print("Real Greeks:")
+    st.write(f"• Spot Delta: {BS_results["delta_S"]*100:.4f}")
+    st.write(f"• Forward Delta: {BS_results["delta_fwd"]*100:.4f}")
+    st.write(f"• Premium-Adjusted Spot Delta: {BS_results["delta_S_pa"]*100:.4f}")
+    st.write(f"• Premium-Adjusted Forward Delta: {BS_results["delta_fwd_pa"]*100:.4f}")
+    print()
+    print("TV Greeks:")
+    st.write(f"• Spot Delta: {TV_greeks["delta_S"]*100:.4f}")
+    st.write(f"• Forward Delta: {TV_greeks["delta_fwd"]*100:.4f}")
+    st.write(f"• Premium-Adjusted Spot Delta: {TV_greeks["delta_S_pa"]*100:.4f}")
+    st.write(f"• Premium-Adjusted Forward Delta: {TV_greeks["delta_fwd_pa"]*100:.4f}")

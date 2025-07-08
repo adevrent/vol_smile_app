@@ -494,6 +494,11 @@ class OptionParams:
         self.K_C = self.calc_strike("CALL", self.sigma_C, self.delta_tilde)  # Call strike at delta pillar with smile vol
         self.K_P = self.calc_strike("PUT", self.sigma_P, -self.delta_tilde)  # Put strike at delta pillar with smile vol
 
+    def calc_TV_greeks(self, call_put, K):
+        sigma = self.sigma_ATM
+        BS_results = self.BS(call_put, K, sigma)
+        return BS_results
+
     def print_init(self):
         print("OptionParams initialized with:")
         print(f"  eval_date: {self.eval_date}")
@@ -615,15 +620,15 @@ myparams = OptionParams(
     sigma_SQ=1.75/100,  # Quoted Strangle volatility
     delta_tilde=0.25,  # pillar smile delta, e.g. 0.25 or 0.10
     K_ATM_convention="fwd",  # "fwd", "fwd_delta_neutral", "spot"
-    delta_convention="spot_pa"  # "spot", "spot_pa", "fwd", "fwd_pa"
+    delta_convention="spot"  # "spot", "spot_pa", "fwd", "fwd_pa"
     )
 
 myparams.optimize_sigma_S()  # This will calibrate sigma_S
 myparams.set_K_C_P()  # This will set K_C and K_P based on the calibrated sigma_S
 myparams.print_results()  # Print the results of the calibration
 
-K = 41.00  # Example strike price for testing
-call_put = "PUT"
+K = 42.0935  # Example strike price for testing
+call_put = "CALL"
 sigma_K = myparams.find_SPI_sigma_K(call_put, K)
 
 
@@ -631,4 +636,4 @@ v_for = myparams.BS(call_put, K, sigma_K)["v_for"]
 # print("forward parity:", np.round(myparams.f, 4))
 print(f"strike {K} sigma: %", np.round(sigma_K * 100, 4))
 print(f"strike {K} v_for: %", np.round(v_for * 100, 4))
-# myparams.plot_smile_K()
+print(myparams.calc_TV_greeks(call_put, K))  # Calculate and print the TV greeks for the given strike

@@ -106,12 +106,10 @@ if st.button("Compute"):
     TV_greeks = params.calc_TV_greeks(call_put, K)
 
     # ── Implied Vol table ─────────────────────────────────────────────────────
-    st.subheader(f"Implied Volatility @ K = {K:.4f}")
-    st.write(f"**{sigma_K * 100:.2f}%**")
 
     # ── Prices Table ─────────────────────────────────────────────────────────
     iv_prices_df = pd.DataFrame({
-        "Param":   [f"Implied Vol @ K = {K:.2f}", "FOR price", f"DOM price"],
+        "Param":   [f"Implied Vol @ K = {K:.4f}", "FOR price", f"DOM price"],
         "Value": [f"{(np.round(sigma_K*100, 4))} %", f"{(np.round(BS_results["v_for"]*100, 4))} %", f"{(np.round(BS_results["v_dom"]*100, 4))} %"]
     })
     st.subheader("IV & Prices")
@@ -134,10 +132,10 @@ if st.button("Compute"):
     tv_df = pd.DataFrame({
         "Greek": ["Spot Δ", "Forward Δ", "Spot Δ (PA)", "Forward Δ (PA)"],
         "Value": [
-            TV_greeks["delta_S"],
-            TV_greeks["delta_fwd"],
-            TV_greeks["delta_S_pa"],
-            TV_greeks["delta_fwd_pa"]
+            f"{(np.round(TV_greeks["delta_S"]*100, 4))} %",
+            f"{(np.round(TV_greeks["delta_fwd"]*100, 4))} %",
+            f"{(np.round(TV_greeks["delta_S_pa"]*100, 4))} %",
+            f"{(np.round(TV_greeks["delta_fwd_pa"]*100, 4))} %"
         ]
     })
     st.subheader("TV Greeks")

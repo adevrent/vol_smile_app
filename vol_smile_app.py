@@ -3,6 +3,7 @@ import QuantLib as ql
 from FX_option_pricer import OptionParams
 import numpy as np
 import scipy.stats as ss
+import pandas as pd
 
 st.title("Volatility Smile Calculator")
 
@@ -104,19 +105,57 @@ if st.button("Compute"):
     BS_results = params.BS(call_put, K, sigma_K)
     TV_greeks = params.calc_TV_greeks(call_put, K)
 
-    st.subheader("Results")
-    st.write(f"• Implied Vol @ K={K:.4f}: {sigma_K*100:.2f}%")
-    st.write(f"• {call_put} Price (for):** {BS_results["v_for"]*100:.4f}%")
-    st.write(f"• {call_put} Price (dom):** {BS_results["v_dom"]*100:.4f}%")
-    print()
-    print("Real Greeks:")
-    st.write(f"• Spot Delta: {BS_results["delta_S"]*100:.4f}")
-    st.write(f"• Forward Delta: {BS_results["delta_fwd"]*100:.4f}")
-    st.write(f"• Premium-Adjusted Spot Delta: {BS_results["delta_S_pa"]*100:.4f}")
-    st.write(f"• Premium-Adjusted Forward Delta: {BS_results["delta_fwd_pa"]*100:.4f}")
-    print()
-    print("TV Greeks:")
-    st.write(f"• Spot Delta: {TV_greeks["delta_S"]*100:.4f}")
-    st.write(f"• Forward Delta: {TV_greeks["delta_fwd"]*100:.4f}")
-    st.write(f"• Premium-Adjusted Spot Delta: {TV_greeks["delta_S_pa"]*100:.4f}")
-    st.write(f"• Premium-Adjusted Forward Delta: {TV_greeks["delta_fwd_pa"]*100:.4f}")
+    # ── Implied Vol table ─────────────────────────────────────────────────────
+    st.subheader(f"Implied Volatility @ K = {K:.4f}")
+    st.write(f"**{sigma_K * 100:.2f}%**")
+
+    # ── Prices Table ─────────────────────────────────────────────────────────
+    prices_df = pd.DataFrame({
+        "Leg":   [f"{call_put} (domestic)", f"{call_put} (foreign)"],
+        "Value": [BS_results["v_dom"],     BS_results["v_for"]]
+    })
+    st.subheader("Prices")
+    st.table(prices_df)
+
+    # ── Real Greeks Table ────────────────────────────────────────────────────
+    real_df = pd.DataFrame({
+        "Greek": ["Spot Δ", "Forward Δ", "Spot Δ (PA)", "Forward Δ (PA)"],
+        "Value": [
+            BS_results["delta_S"],
+            BS_results["delta_fwd"],
+            BS_results["delta_S_pa"],
+            BS_results["delta_fwd_pa"]
+        ]
+    })
+    st.subheader("Real Greeks")
+    st.table(real_df)
+
+    # ── TV Greeks Table ──────────────────────────────────────────────────────
+    tv_df = pd.DataFrame({
+        "Greek": ["Spot Δ", "Forward Δ", "Spot Δ (PA)", "Forward Δ (PA)"],
+        "Value": [
+            TV_greeks["delta_S"],
+            TV_greeks["delta_fwd"],
+            TV_greeks["delta_S_pa"],
+            TV_greeks["delta_fwd_pa"]
+        ]
+    })
+    st.subheader("TV Greeks")
+    st.table(tv_df)
+
+    # st.subheader("Results")
+    # st.write(f"• Implied Vol @ K={K:.4f}: {sigma_K*100:.2f}%")
+    # st.write(f"• {call_put} Price (for):** {BS_results["v_for"]*100:.4f}%")
+    # st.write(f"• {call_put} Price (dom):** {BS_results["v_dom"]*100:.4f}%")
+    # print()
+    # print("Real Greeks:")
+    # st.write(f"• Spot Delta: {BS_results["delta_S"]*100:.4f}")
+    # st.write(f"• Forward Delta: {BS_results["delta_fwd"]*100:.4f}")
+    # st.write(f"• Premium-Adjusted Spot Delta: {BS_results["delta_S_pa"]*100:.4f}")
+    # st.write(f"• Premium-Adjusted Forward Delta: {BS_results["delta_fwd_pa"]*100:.4f}")
+    # print()
+    # print("TV Greeks:")
+    # st.write(f"• Spot Delta: {TV_greeks["delta_S"]*100:.4f}")
+    # st.write(f"• Forward Delta: {TV_greeks["delta_fwd"]*100:.4f}")
+    # st.write(f"• Premium-Adjusted Spot Delta: {TV_greeks["delta_S_pa"]*100:.4f}")
+    # st.write(f"• Premium-Adjusted Forward Delta: {TV_greeks["delta_fwd_pa"]*100:.4f}")

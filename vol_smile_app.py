@@ -2,7 +2,8 @@ import streamlit as st
 import QuantLib as ql
 from FX_option_pricer import OptionParams
 import numpy as np
-import scipy.stats as ss
+import scipy.stats as st
+import pandas as pd
 
 st.title("Volatility Smile Calculator")
 

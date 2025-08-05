@@ -2,6 +2,10 @@ import streamlit as st
 import QuantLib as ql
 import numpy as np
 import pandas as pd
+import os, sys
+
+# ensure FX_Option_Pricer.py is discoverable
+sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 from FX_Option_Pricer import OptionParams, calc_tx_with_spreads
 
 st.title("SPI Vol Smile & TX Calculator")
@@ -74,27 +78,23 @@ if st.button("Compute"):
 
     # parse numbers and spreads
     try:
-        x               = float(x_str)
-        rd_spread       = float(rd_spread_str) / 100
-        rf_spread       = float(rf_spread_str) / 100
-        ATM_vol_spread  = float(ATM_vol_spread_str) / 100
-        rd_simple       = float(sigma_ATM_str) / 100  # placeholder, will override below
-        rf_simple       = float(sigma_RR_str) / 100   # placeholder
-        sigma_ATM       = float(sigma_ATM_str) / 100
-        sigma_RR        = float(sigma_RR_str)  / 100
-        sigma_SQ        = float(sigma_SQ_str)  / 100
-        K               = float(K_str)
+        x              = float(x_str)
+        rd_spread      = float(rd_spread_str) / 100
+        rf_spread      = float(rf_spread_str) / 100
+        ATM_vol_spread = float(ATM_vol_spread_str) / 100
+        sigma_ATM      = float(sigma_ATM_str) / 100
+        sigma_RR       = float(sigma_RR_str)  / 100
+        sigma_SQ       = float(sigma_SQ_str)  / 100
+        K              = float(K_str)
     except Exception as e:
         st.error(f"Numeric input error: {e}")
         st.stop()
 
-    # Calculate base simple rates from spreads
-    # Using spreads as simple rates here for rd_simple/rf_simple
+    # use spreads as simple rates
     rd_simple = rd_spread
     rf_simple = rf_spread
 
-    # Run calculation
-    # First, initialize parameters to extract forward parity
+    # initialize to extract forward parity
     params = OptionParams(
         calendar=ql.Turkey(),
         basis_dict=basis_dict,
@@ -112,24 +112,22 @@ if st.button("Compute"):
         K_ATM_convention=K_ATM_conv,
         delta_convention=delta_conv
     )
-    # Compute smile calibration
     params.optimize_sigma_S()
     params.set_K_C_P()
 
-    # Now compute transaction with spreads
+    # compute transaction with spreads
 df = calc_tx_with_spreads(
-    buy_sell, call_put, K,
-    rd_spread, rf_spread, ATM_vol_spread,
-    ql.Turkey(), basis_dict, 1,
-    eval_date, expiry_date, delivery_date,
-    x, rd_simple, rf_simple,
-    sigma_ATM, sigma_RR, sigma_SQ,
-    delta_tilde=delta_tilde,
-    K_ATM_convention=K_ATM_conv,
-    delta_convention=delta_conv
-)
-
-# Display results
+        buy_sell, call_put, K,
+        rd_spread, rf_spread, ATM_vol_spread,
+        ql.Turkey(), basis_dict, 1,
+        eval_date, expiry_date, delivery_date,
+        x, rd_simple, rf_simple,
+        sigma_ATM, sigma_RR, sigma_SQ,
+        delta_tilde=delta_tilde,
+        K_ATM_convention=K_ATM_conv,
+        delta_convention=delta_conv
+    )
+# display
 st.text(f"MID Forward Parity: {np.round(params.f, 4)}")
 st.text("")
 st.text(f"ATM Strike Convention: {K_ATM_conv}")

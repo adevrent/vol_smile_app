@@ -128,10 +128,11 @@ df = calc_tx_with_spreads(
     K_ATM_convention=K_ATM_conv,
     delta_convention=delta_conv
 )
-    # Display results
-    st.text(f"MID Forward Parity: {np.round(params.f, 4)}")
-    st.text("")
-    st.text(f"ATM Strike Convention: {K_ATM_conv}")
-    st.text(f"Delta convention: {delta_conv}")
-    st.text(f"@{K:.3f} {call_put} results :")
-    st.table(df)
+
+# Display results
+st.text(f"MID Forward Parity: {np.round(params.f, 4)}")
+st.text("")
+st.text(f"ATM Strike Convention: {K_ATM_conv}")
+st.text(f"Delta convention: {delta_conv}")
+st.text(f"@{K:.3f} {call_put} results :")
+st.table(df)

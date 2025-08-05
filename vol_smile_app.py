@@ -1,12 +1,10 @@
 import streamlit as st
 import QuantLib as ql
-from FX_option_pricer import OptionParams
 import numpy as np
-import scipy.stats as ss
 import pandas as pd
-import matplotlib.pyplot as plt
+from FX_Option_Pricer import OptionParams, calc_tx_with_spreads
 
-st.title("SPI Vol Smile Calculator, by Atakan Devrent")
+st.title("SPI Vol Smile & TX Calculator")
 
 # 1) Day-count bases
 basis_map = {
@@ -33,30 +31,39 @@ def parse_ql_date(s: str) -> ql.Date:
         st.error(f"Invalid date format: {s}")
         st.stop()
 
-# 3) Numeric inputs as text
-x_str         = st.text_input("Spot Price", placeholder="e.g. 39.729")
-rd_str        = st.text_input("Simple Domestic Rate (%)", placeholder="e.g. 45.994")
-rf_str        = st.text_input("Simple Foreign Rate (%)", placeholder="e.g. 4.320")
-sigma_ATM_str = st.text_input("ATM VOL (%)", placeholder="e.g. 12.00")
+# 3) Market inputs
+col1, col2, col3 = st.columns(3)
+with col1:
+    x_str         = st.text_input("Spot Price", placeholder="e.g. 39.729")
+with col2:
+    rd_spread_str = st.text_input("Domestic Rate Spread (%)", placeholder="e.g. 45")
+with col3:
+    rf_spread_str = st.text_input("Foreign Rate Spread (%)", placeholder="e.g. 5")
+
+col4, col5 = st.columns(2)
+with col4:
+    ATM_vol_spread_str = st.text_input("ATM vol Spread (%)", placeholder="e.g. 2.25")
+with col5:
+    sigma_ATM_str = st.text_input("ATM VOL (%)", placeholder="e.g. 12.00")
 sigma_RR_str  = st.text_input("RR VOL (%)", placeholder="e.g. 13.00")
 sigma_SQ_str  = st.text_input("BF VOL (%)", placeholder="e.g. 1.75")
 
 # 4) Pillar delta
-pillar_choices = [0.10, 0.25]
-delta_tilde   = st.selectbox("Pillar Delta", pillar_choices, index=0)
+delta_tilde = st.selectbox("Pillar Delta", [0.10, 0.25], index=0)
 
-# 5) Conventions
-atm_map = {"Forward":"fwd", "Forward Delta Neutral":"fwd_delta_neutral", "Spot":"spot"}
-K_ATM_label = st.selectbox("ATM Strike Convention", list(atm_map.keys()), index=0)
-K_ATM_conv  = atm_map[K_ATM_label]
-
-delta_map    = {"Spot":"spot", "Spot Premium Adjusted":"spot_pa", "Forward":"fwd"}
-delta_label = st.selectbox("Delta Convention", list(delta_map.keys()), index=0)
-delta_conv  = delta_map[delta_label]
+# 5) BUY/SELL and Convention
+buy_sell = st.selectbox("BUY/SELL", ["BUY", "SELL"], index=0)
+convention = st.selectbox("Convention", ["Convention A", "Convention B"], index=0)
+if convention == "Convention A":
+    K_ATM_conv = "fwd_delta_neutral"
+    delta_conv = "spot_pa"
+else:
+    K_ATM_conv = "fwd"
+    delta_conv = "spot"
 
 # 6) Strike & Call/Put
 K_str      = st.text_input("Strike Price", placeholder="e.g. 41.00")
-call_put   = st.selectbox("CALL/PUT", ["CALL","PUT"], index=0)
+call_put   = st.selectbox("CALL/PUT", ["CALL","PUT"], index=1)
 
 # 7) Compute
 if st.button("Compute"):
@@ -65,20 +72,29 @@ if st.button("Compute"):
     expiry_date   = parse_ql_date(expiry_date_str)
     delivery_date = parse_ql_date(delivery_date_str)
 
-    # parse numbers
+    # parse numbers and spreads
     try:
-        x         = float(x_str)
-        rd_simple = float(rd_str) / 100
-        rf_simple = float(rf_str) / 100
-        sigma_ATM = float(sigma_ATM_str) / 100
-        sigma_RR  = float(sigma_RR_str)  / 100
-        sigma_SQ  = float(sigma_SQ_str)  / 100
-        K         = float(K_str)
+        x               = float(x_str)
+        rd_spread       = float(rd_spread_str) / 100
+        rf_spread       = float(rf_spread_str) / 100
+        ATM_vol_spread  = float(ATM_vol_spread_str) / 100
+        rd_simple       = float(sigma_ATM_str) / 100  # placeholder, will override below
+        rf_simple       = float(sigma_RR_str) / 100   # placeholder
+        sigma_ATM       = float(sigma_ATM_str) / 100
+        sigma_RR        = float(sigma_RR_str)  / 100
+        sigma_SQ        = float(sigma_SQ_str)  / 100
+        K               = float(K_str)
     except Exception as e:
         st.error(f"Numeric input error: {e}")
         st.stop()
 
-    # initialize parameters
+    # Calculate base simple rates from spreads
+    # Using spreads as simple rates here for rd_simple/rf_simple
+    rd_simple = rd_spread
+    rf_simple = rf_spread
+
+    # Run calculation
+    # First, initialize parameters to extract forward parity
     params = OptionParams(
         calendar=ql.Turkey(),
         basis_dict=basis_dict,
@@ -96,53 +112,26 @@ if st.button("Compute"):
         K_ATM_convention=K_ATM_conv,
         delta_convention=delta_conv
     )
-
-    # calibrate smile
+    # Compute smile calibration
     params.optimize_sigma_S()
     params.set_K_C_P()
 
-    # Compute for the chosen strike & option type
-    sigma_K = params.find_SPI_sigma_K(call_put, K)
-    BS_results = params.BS(call_put, K, sigma_K)
-    TV_greeks = params.calc_TV_greeks(call_put, K)
-
-    # ── Implied Vol table ─────────────────────────────────────────────────────
-
-    # ── Prices Table ─────────────────────────────────────────────────────────
-    iv_prices_df = pd.DataFrame({
-        "Param":   [f"Implied Vol @ K = {K:.4f}", "FOR price", f"DOM price"],
-        "Value": [f"{(np.round(sigma_K*100, 4))} %", f"{(np.round(BS_results["v_for"]*100, 4))} %", f"{(np.round(BS_results["v_dom"]*100, 4))} %"]
-    })
-    st.subheader("IV & Prices")
-    st.table(iv_prices_df)
-
-    # ── Real Greeks Table ────────────────────────────────────────────────────
-    real_df = pd.DataFrame({
-        "Greek": ["Spot Δ", "Forward Δ", "Spot Δ (PA)", "Forward Δ (PA)"],
-        "Value": [
-            f"{(np.round(BS_results["delta_S"]*100, 4))} %",
-            f"{(np.round(BS_results["delta_fwd"]*100, 4))} %",
-            f"{(np.round(BS_results["delta_S_pa"]*100, 4))} %",
-            f"{(np.round(BS_results["delta_fwd_pa"]*100, 4))} %"
-        ]
-    })
-    st.subheader("Real Greeks")
-    st.table(real_df)
-
-    # ── TV Greeks Table ──────────────────────────────────────────────────────
-    tv_df = pd.DataFrame({
-        "Greek": ["Spot Δ", "Forward Δ", "Spot Δ (PA)", "Forward Δ (PA)"],
-        "Value": [
-            f"{(np.round(TV_greeks["delta_S"]*100, 4))} %",
-            f"{(np.round(TV_greeks["delta_fwd"]*100, 4))} %",
-            f"{(np.round(TV_greeks["delta_S_pa"]*100, 4))} %",
-            f"{(np.round(TV_greeks["delta_fwd_pa"]*100, 4))} %"
-        ]
-    })
-    st.subheader("TV Greeks")
-    st.table(tv_df)
-
-    # Smile Plot ─────────────────────────────────────────────────────────
-    st.subheader("Volatility Smile")
-    fig = params.plot_smile_K()
-    st.pyplot(fig)
+    # Now compute transaction with spreads
+df = calc_tx_with_spreads(
+    buy_sell, call_put, K,
+    rd_spread, rf_spread, ATM_vol_spread,
+    ql.Turkey(), basis_dict, 1,
+    eval_date, expiry_date, delivery_date,
+    x, rd_simple, rf_simple,
+    sigma_ATM, sigma_RR, sigma_SQ,
+    delta_tilde=delta_tilde,
+    K_ATM_convention=K_ATM_conv,
+    delta_convention=delta_conv
+)
+    # Display results
+    st.text(f"MID Forward Parity: {np.round(params.f, 4)}")
+    st.text("")
+    st.text(f"ATM Strike Convention: {K_ATM_conv}")
+    st.text(f"Delta convention: {delta_conv}")
+    st.text(f"@{K:.3f} {call_put} results :")
+    st.table(df)

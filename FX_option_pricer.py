@@ -1,52 +1,17 @@
 import numpy as np
+import pandas as pd
 import scipy.stats as ss
 import QuantLib as ql
 import datetime as dt
-from scipy.optimize import brentq
 from scipy.optimize import root_scalar
 from matplotlib import pyplot as plt
+from utils import convert_datetype, convert_simple_to_ccomp
+import xlwings as xw
 
 
-valid_datetypes = ["ISO", "datetime", "QL"]
 valid_K_ATM_conventions = ["fwd", "fwd_delta_neutral", "spot"]
-
-def convert_datetype(date, to_type):
-    assert to_type in valid_datetypes, "Invalid to_date type"
-
-    # If the input is already the target type, return it.
-    if to_type == "ISO" and isinstance(date, str):
-        return date
-    elif to_type == "datetime" and isinstance(date, dt.date) and not isinstance(date, dt.datetime):
-        return date
-    elif to_type == "QL" and isinstance(date, ql.Date):
-        return date
-
-    if isinstance(date, str):  # date is ISO
-        assert len(date) == 10, "Date is not in valid ISO format"
-        if to_type == "datetime":
-            return dt.datetime.strptime(date, "%Y-%m-%d").date()
-        elif to_type == "QL":
-            return ql.DateParser.parseISO(date)
-    elif isinstance(date, dt.date) and not isinstance(date, dt.datetime):  # date is datetime.date
-        if to_type == "ISO":
-            return date.strftime("%Y-%m-%d")
-        elif to_type == "QL":
-            return ql.Date.from_date(date)
-    elif isinstance(date, dt.datetime):  # if date is datetime.datetime, convert to date first
-        # Convert to date before further processing
-        date_only = date.date()
-        return convert_datetype(date_only, to_type)
-    elif isinstance(date, ql.Date):  # date is QuantLib Date
-        if to_type == "ISO":
-            return date.ISO()
-        elif to_type == "datetime":
-            return date.to_date()
-
-    # If none of the above conditions match, raise an error.
-    raise TypeError("Unsupported date type provided.")
-
-
 valid_delta_conventions = ["spot", "spot_pa", "fwd"]
+valid_conventions = ["Convention A", "Convention B"]
 
 
 class OptionParams:
@@ -56,9 +21,9 @@ class OptionParams:
         self.basis_dict = basis_dict
         self.spot_bd = spot_bd
 
-        self.eval_date = eval_date
-        self.expiry_date = expiry_date
-        self.delivery_date = delivery_date
+        self.eval_date = eval_date  # QL type
+        self.expiry_date = expiry_date  # QL type
+        self.delivery_date = delivery_date  # QL type
         self.x = x
 
         self.delta_convention = delta_convention  # "spot", "spot_pa", "fwd", "fwd_pa"
@@ -93,21 +58,29 @@ class OptionParams:
         self.tau_spot_for = self.for_basis.yearFraction(self.eval_spot_date, self.delivery_date)
         self.tau_spot_dom = self.dom_basis.yearFraction(self.eval_spot_date, self.delivery_date)
 
-        self.rd = convert_simple_to_ccomp(rd_simple, self.tau_spot_dom)
-        self.rf = convert_simple_to_ccomp(rf_simple, self.tau_spot_for)
+        # New tau values
+        self.tau_365 = ql.Actual365Fixed().yearFraction(self.eval_date, self.expiry_date)
+        self.tau_360 = ql.Actual360().yearFraction(self.eval_date, self.expiry_date)
+        self.tau_spot_360 = ql.Actual360().yearFraction(self.eval_spot_date, self.delivery_date)
+        self.tau_spot_365 = ql.Actual365Fixed().yearFraction(self.eval_spot_date, self.delivery_date)
 
-        self.f = self.x * np.exp((self.rd - self.rf) * self.tau_spot_for)
+        self.rd = convert_simple_to_ccomp(rd_simple, self.tau_spot_360)
+        self.rf = convert_simple_to_ccomp(rf_simple, self.tau_spot_360)
+
+        self.f = self.x * np.exp((self.rd - self.rf) * self.tau_spot_360)
 
         if K_ATM_convention.lower() not in valid_K_ATM_conventions:
             raise ValueError(f"Invalid K_ATM_convention: {K_ATM_convention}. Must be one of {valid_K_ATM_conventions}.")
         if K_ATM_convention.lower() == "fwd":
             self.K_ATM = self.f
         elif K_ATM_convention.lower() == "fwd_delta_neutral":
-            self.K_ATM = self.f * np.exp(0.5 * self.sigma_ATM**2 * self.tau)
+            if delta_convention.lower() == "spot":
+                self.K_ATM = self.f * np.exp(0.5 * self.sigma_ATM**2 * self.tau_365)
+            elif delta_convention.lower() == "spot_pa":
+                self.K_ATM = self.f * np.exp(-0.5 * self.sigma_ATM**2 * self.tau_365)
         elif K_ATM_convention.lower() == "spot":
             self.K_ATM = self.x
 
-        # self.K_ATM = x
         self.delta_ATM = self.BS("CALL", self.K_ATM, self.sigma_ATM)["delta_S"]  # spot delta of ATM call option, to be used in strangle calculation
 
         # SPI params
@@ -119,12 +92,12 @@ class OptionParams:
         print("K_CSM pa delta:", np.round(self.BS("CALL", self.K_CSM, self.sigma_SM)["delta_S_pa"] * 100, 4))
         print()
         print("Calculating K_PSM")
-        
+
         self.K_PSM = self.calc_strike("PUT", self.sigma_SM, -self.delta_tilde)  # Put strike at delta pillar with MARKET STRANGLE VOL !
         print("K_PSM:", self.K_PSM)
         print("K_PSM pa delta:", np.round(self.BS("PUT", self.K_PSM, self.sigma_SM)["delta_S_pa"] * 100, 4))
         print("...." * 50)
-        
+
         # ##### RESTRICTION 3
         self.v_SM = self.BS("CALL", self.K_CSM, self.sigma_SM)["v_dom"] + self.BS("PUT", self.K_PSM, self.sigma_SM)["v_dom"]  # Market Strangle value in domestic currency with MARKET STRANGLE VOL !
         """
@@ -138,7 +111,7 @@ class OptionParams:
             raise ValueError(f"Invalid delta_convention: {delta_convention}. Must be one of {valid_delta_conventions}.")
 
         if delta_convention.lower() == "spot":
-            self.a = np.exp(-self.rf * self.tau)  # equal to foreign DF from put-call delta parity
+            self.a = np.exp(-self.rf * self.tau_360)  # equal to foreign DF from put-call delta parity
             #                                       because we use spot delta
         elif delta_convention.lower() == "fwd":
             self.a = 1
@@ -165,11 +138,11 @@ class OptionParams:
         theta_plus = (self.rd - self.rf)/sigma + sigma/2
         if self.delta_convention.lower() == "spot":
             delta_S = delta
-            K = self.x * np.exp(-phi * ss.norm.ppf(phi * np.exp(self.rf*self.tau) * delta_S) * sigma * np.sqrt(self.tau) + sigma * theta_plus * self.tau)
+            K = self.x * np.exp(-phi * ss.norm.ppf(phi * np.exp(self.rf*self.tau_360) * delta_S) * sigma * np.sqrt(self.tau_365) + sigma * theta_plus * self.tau_365)
             return K
         elif self.delta_convention.lower() == "fwd":
-            delta_S = np.exp(-self.rf * self.tau) * delta
-            K = self.x * np.exp(-phi * ss.norm.ppf(phi * np.exp(self.rf*self.tau) * delta_S) * sigma * np.sqrt(self.tau) + sigma * theta_plus * self.tau)
+            delta_S = np.exp(-self.rf * self.tau_360) * delta
+            K = self.x * np.exp(-phi * ss.norm.ppf(phi * np.exp(self.rf*self.tau_360) * delta_S) * sigma * np.sqrt(self.tau_365) + sigma * theta_plus * self.tau_365)
             return K
         elif self.delta_convention.lower() == "spot_pa":
             print("Inside calc_strike with spot_pa delta convention")
@@ -178,7 +151,7 @@ class OptionParams:
             because premium-adjusted delta for a strike K is always
             SMALLER than the non-adjusted delta corresponding to
             the same strike"""
-            K_npa = self.x * np.exp(-phi * ss.norm.ppf(phi * np.exp(self.rf*self.tau) * delta_S) * sigma * np.sqrt(self.tau) + sigma * theta_plus * self.tau)
+            K_npa = self.x * np.exp(-phi * ss.norm.ppf(phi * np.exp(self.rf*self.tau_360) * delta_S) * sigma * np.sqrt(self.tau_365) + sigma * theta_plus * self.tau_365)
             print("K_npa:", K_npa)
             K_max = K_npa
             K_min = self.solve_K_min(sigma, K_max, eps=eps, max_iter=1000)
@@ -190,7 +163,7 @@ class OptionParams:
                 print()
                 print("####### Inside calc_strike objective function #######")
                 d2 = self.calc_d2(K, sigma)
-                delta_S_pa = phi * np.exp(-self.rf * self.tau) * K/self.f * ss.norm.cdf(phi * d2)
+                delta_S_pa = phi * np.exp(-self.rf * self.tau_360) * K/self.f * ss.norm.cdf(phi * d2)
                 print("delta_S_pa:", delta_S_pa)
                 print("calc strike objective: %", np.round(delta_S_pa - delta, 6))
                 print("K =", K)
@@ -232,33 +205,6 @@ class OptionParams:
                 # Fallback to non-premium-adjusted strike
                 return K_npa
 
-
-    def calc_strike_jaeckel(self, call_put, sigma, delta_fwd_pa):
-        if call_put.lower() == "call":
-            phi = 1
-        else:
-            phi = -1
-
-        alpha = phi * sigma
-        y = np.log(K/self.f) + alpha/2
-
-        q = ss.norm.pdf(y) / ss.norm.cdf(-y)
-        f_1 = lambda y: alpha - q
-        f_2 = lambda y: q * (y - q)
-        f_3 = lambda y: q * (q * (3*y - 2*q) + 1 - y**2)
-        f_4 = lambda y: q * (q * (q * (12*y - 6*q) + 4 - 7*y**2) + y * (y**2 - 3))
-        f_5 = lambda y: q * (q * (q * (q * (60*y - 24*q) + 20 - 50*y**2) + y * (15*y**2 - 25)) + y**2 * (6 - y**2) - 3)
-        f_6 = lambda y: q * (q * (q * (q * (q * (360*y - 120*q) + 120 - 390*y**2) + y * (180*y**2 - 210)) + y**2 * (101 - 31*y**2) - 28) + y * (15 + y**2 * (y**2 - 10)))
-
-        def f(y):
-            return np.log(np.abs(2*delta_fwd_pa)) + (alpha**2)/y
-
-        # Initial guess function
-        def y0(f_star):  #TODO
-            return
-
-        K = self.f * np.exp(alpha*y - (alpha**2)/2)
-
     def calc_d1(self, K, sigma):
         """
         Calculate d1 for Black-Scholes formula.
@@ -267,7 +213,7 @@ class OptionParams:
             K (float): strike price
             sigma (float): volatility of the option, in 0.33 format.
         """
-        d1 = (np.log(self.f/K) + 0.5*(sigma**2)*self.tau) / (sigma*np.sqrt(self.tau))
+        d1 = (np.log(self.f/K) + 0.5*(sigma**2)*self.tau_365) / (sigma*np.sqrt(self.tau_365))
         return d1
 
     def calc_d2(self, K, sigma):
@@ -278,13 +224,13 @@ class OptionParams:
             K (float): strike price
             sigma (float): volatility of the option, in 0.33 format.
         """
-        d2 = (np.log(self.f/K) - 0.5*(sigma**2)*self.tau) / (sigma*np.sqrt(self.tau))
+        d2 = (np.log(self.f/K) - 0.5*(sigma**2)*self.tau_365) / (sigma*np.sqrt(self.tau_365))
         return d2
 
     def solve_K_min(self, sigma, K_max, eps=1e-6, max_iter=1000):
         def f(K_min):
             d2 = self.calc_d2(K_min, sigma)
-            obj = sigma * np.sqrt(self.tau) * ss.norm.cdf(d2) - ss.norm.pdf(d2)
+            obj = sigma * np.sqrt(self.tau_365) * ss.norm.cdf(d2) - ss.norm.pdf(d2)
             return obj
 
         try:
@@ -303,7 +249,7 @@ class OptionParams:
 
         except ValueError:
             # Fallback to a reasonable lower bound
-            return 0.001 * self.f                
+            return 0.001 * self.f
 
     def BS(self, call_put, K, sigma):
         """
@@ -320,12 +266,12 @@ class OptionParams:
         d1 = self.calc_d1(K, sigma)
         d2 = self.calc_d2(K, sigma)
 
-        v_dom = phi * np.exp(-self.rd * self.tau) * (self.f * ss.norm.cdf(phi * d1) - K * ss.norm.cdf(phi * d2))
+        v_dom = phi * np.exp(-self.rd * self.tau_360) * (self.f * ss.norm.cdf(phi * d1) - K * ss.norm.cdf(phi * d2))
         v_for = v_dom/self.x
 
-        delta_S = phi * np.exp(-self.rf * self.tau) * ss.norm.cdf(phi * d1)
+        delta_S = phi * np.exp(-self.rf * self.tau_360) * ss.norm.cdf(phi * d1)
         delta_S_pa = delta_S - v_for
-        delta_dual = -phi * np.exp(-self.rd * self.tau) * ss.norm.cdf(phi * d2)
+        delta_dual = -phi * np.exp(-self.rd * self.tau_360) * ss.norm.cdf(phi * d2)
         delta_fwd = phi * ss.norm.cdf(phi * d1)
         delta_fwd_pa = phi * K/self.f * ss.norm.cdf(phi * d2)
 
@@ -336,6 +282,20 @@ class OptionParams:
                 "delta_dual": delta_dual,
                 "delta_fwd": delta_fwd,
                 "delta_fwd_pa": delta_fwd_pa}
+
+    def get_vol_from_price(self, v_dom, K, call_put, eps=1e-9, max_iter=10000):
+        """
+        Find the implied volatility for a given price using the Black-Scholes model.
+        """
+
+        def f(sigma):
+            return self.BS(call_put, K, sigma)["v_dom"] - v_dom
+
+        a, b = 1e-6, 2.0
+
+        res = root_scalar(f, method="brentq", bracket=[a, b], xtol=eps, maxiter=max_iter)
+        return res.root
+
 
     def calc_c1(self, sigma_S, a=None):
         """
@@ -399,7 +359,7 @@ class OptionParams:
             if self.a is None:
                 print("||||| Initial K_P optimization: |||||")
                 K_P = self.calc_strike("PUT", self.sigma_SM, -self.delta_tilde)  # Initial value
-                self.a = np.exp(-self.rf * self.tau) * K_P/self.f
+                self.a = np.exp(-self.rf * self.tau_360) * K_P/self.f
                 print("        -- Initial K_P =", K_P)
 
             def f(sigma_S):
@@ -407,7 +367,7 @@ class OptionParams:
                 print("        -- sigma_P = %", sigma_P*100)
                 K_P = self.calc_strike("PUT", sigma_P, -self.delta_tilde)  # Update K_P based on sigma_P
                 print("        -- K_P =", K_P)
-                self.a = np.exp(-self.rf * self.tau) * K_P/self.f
+                self.a = np.exp(-self.rf * self.tau_360) * K_P/self.f
 
                 sigma_CSM = self.find_SPI_sigma_K("CALL", self.K_CSM, sigma_S)
                 sigma_PSM = self.find_SPI_sigma_K("PUT", self.K_PSM, sigma_S)
@@ -458,7 +418,7 @@ class OptionParams:
             c2 = self.calc_c2(sigma_S, a)
         elif self.delta_convention.lower() == "spot_pa":
             delta_type = "delta_S_pa"
-            a = np.exp(-self.rf * self.tau) * K/self.f
+            a = np.exp(-self.rf * self.tau_360) * K/self.f
             c1 = self.calc_c1(sigma_S, a)
             c2 = self.calc_c2(sigma_S, a)
         else:
@@ -494,11 +454,6 @@ class OptionParams:
         self.K_C = self.calc_strike("CALL", self.sigma_C, self.delta_tilde)  # Call strike at delta pillar with smile vol
         self.K_P = self.calc_strike("PUT", self.sigma_P, -self.delta_tilde)  # Put strike at delta pillar with smile vol
 
-    def calc_TV_greeks(self, call_put, K):
-        sigma = self.sigma_ATM
-        BS_results = self.BS(call_put, K, sigma)
-        return BS_results
-
     def print_init(self):
         print("OptionParams initialized with:")
         print(f"  eval_date: {self.eval_date}")
@@ -527,7 +482,7 @@ class OptionParams:
             print("sigma_S not set, optimizing...")
             self.optimize_sigma_S()
 
-        K_arr = np.linspace(self.K_ATM - self.K_ATM/5, self.K_ATM + self.K_ATM/5, 50)
+        K_arr = np.linspace(self.K_ATM - self.K_ATM/4, self.K_ATM + self.K_ATM/4, 20)
         sigmas = np.array([self.find_SPI_sigma_K(self.simple_call_put(K), K)*100 for K in K_arr])
 
         plt.figure(figsize=(10, 6))
@@ -539,8 +494,7 @@ class OptionParams:
         plt.ylabel('Implied Volatility')
         plt.legend()
         plt.grid()
-        fig = plt.gcf()
-        return fig
+        plt.show()
 
     def plot_smile_delta(self):  # TODO
         """
@@ -599,44 +553,223 @@ class OptionParams:
         print("K_P =", np.round(self.K_P, 4))
         print("delta K_P = %", np.round(self.BS("PUT", self.K_P, self.sigma_P)["delta_S"] * 100, 4))
 
-def convert_simple_to_ccomp(rate, tau):
-    """
-    Convert simple interest rate to continuously compounded rate.
-    """
-    return np.log(1 + rate * tau) / tau
+def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_spread, calendar, basis_dict, spot_bd, eval_date, expiry_date, delivery_date, x, rd_simple, rf_simple, sigma_ATM, sigma_RR, sigma_SQ, delta_tilde=0.25, K_ATM_convention="fwd", delta_convention="fwd_pa"):
+    rd_bid = rd_simple - rd_spread / 2
+    rd_ask = rd_simple + rd_spread / 2
 
+    rf_bid = rf_simple - rf_spread / 2
+    rf_ask = rf_simple + rf_spread / 2
 
-myparams = OptionParams(
-    calendar=ql.Turkey(),
-    basis_dict={"FOR": ql.Actual360(), "DOM": ql.Actual365Fixed()},
-    spot_bd=1,
-    eval_date=ql.Date(23, 6, 2025),
-    expiry_date=ql.Date(23, 7, 2025),
-    delivery_date=ql.Date(24, 7, 2025),
-    x=39.729,
-    rd_simple=45.994/100,
-    rf_simple=4.32/100,
-    sigma_ATM=12/100,  # ATM volatility
-    sigma_RR=13/100,  # Risk Reversal volatility
-    sigma_SQ=1.75/100,  # Quoted Strangle volatility
-    delta_tilde=0.25,  # pillar smile delta, e.g. 0.25 or 0.10
-    K_ATM_convention="fwd",  # "fwd", "fwd_delta_neutral", "spot"
-    delta_convention="spot_pa"  # "spot", "spot_pa", "fwd", "fwd_pa"
+    if call_put.lower() == "call":
+        if buy_sell.lower() == "buy":
+            rf = rf_ask
+            rd = rd_bid
+        elif buy_sell.lower() == "sell":
+            rf = rf_bid
+            rd = rd_ask
+    elif call_put.lower() == "put":
+        if buy_sell.lower() == "buy":
+            rf = rf_bid
+            rd = rd_ask
+        elif buy_sell.lower() == "sell":
+            rf = rf_ask
+            rd = rd_bid
+
+    mid_params = OptionParams(
+        calendar=calendar,
+        basis_dict=basis_dict,
+        spot_bd=spot_bd,
+        eval_date=eval_date,
+        expiry_date=expiry_date,
+        delivery_date=delivery_date,
+        x=x,
+        rd_simple=rd,
+        rf_simple=rf,
+        sigma_ATM=sigma_ATM,
+        sigma_RR=sigma_RR,
+        sigma_SQ=sigma_SQ,
+        delta_tilde=delta_tilde,
+        K_ATM_convention=K_ATM_convention,
+        delta_convention=delta_convention
     )
 
-myparams.optimize_sigma_S()  # This will calibrate sigma_S
-myparams.set_K_C_P()  # This will set K_C and K_P based on the calibrated sigma_S
-myparams.print_results()  # Print the results of the calibration
+    mid_params.optimize_sigma_S()  # This will calibrate sigma_S
+    mid_params.set_K_C_P()  # This will set K_C and K_P based
+    mid_params.print_results()  # Print the results of the calibration
 
-K = 42.0935  # Example strike price for testing
-call_put = "CALL"
-sigma_K = myparams.find_SPI_sigma_K(call_put, K)
+    K_ATM = mid_params.K_ATM
+    sigma_ATM_bid = sigma_ATM - ATM_vol_spread / 2
+    sigma_ATM_ask = sigma_ATM + ATM_vol_spread / 2
+
+    bid_ATM_v_for = mid_params.BS(call_put, K_ATM, sigma_ATM_bid)["v_for"]
+    ask_ATM_v_for = mid_params.BS(call_put, K_ATM, sigma_ATM_ask)["v_for"]
+    ATM_v_for_diff = ask_ATM_v_for - bid_ATM_v_for
+
+    sigma_K_mid = mid_params.find_SPI_sigma_K(call_put, K)
+
+    v_for_mid = mid_params.BS(call_put, K, sigma_K_mid)["v_for"]
+    v_for_bid = np.maximum(v_for_mid - ATM_v_for_diff / 2, 1e-6)  # Ensure v_for_bid is not negative
+    v_for_ask = v_for_mid + ATM_v_for_diff / 2
+
+    v_dom_bid = v_for_bid * mid_params.x
+    v_dom_ask = v_for_ask * mid_params.x
+
+    sigma_K_bid = mid_params.get_vol_from_price(v_dom_bid, K, call_put)
+    sigma_K_ask = mid_params.get_vol_from_price(v_dom_ask, K, call_put)
+
+    print("_" * 40)
+    print()
+    print(f"TX results for {buy_sell.upper()} {call_put.upper()} @ K = {K}:")
+    print()
+    print("Domestic Rate (rd):", np.round(rd * 100, 4), "%")
+    print("Foreign Rate (rf):", np.round(rf * 100, 4), "%")
+    print()
+    print(f"MID Forward Parity: {np.round(mid_params.f, 4)}")
+    print()
+    print(f"ATM Strike Convention: {K_ATM_convention}\nDelta convention: {delta_convention}\n@{K:.3f} {call_put} results :")
+
+    df_dict = {"BID": [f"%{np.round(sigma_K_bid * 100, 5)}", f"%{np.round(v_for_bid * 100, 5)}"],
+               "ASK": [f"%{np.round(sigma_K_ask * 100, 5)}", f"%{np.round(v_for_ask * 100, 5)}"],
+               "MID": [f"%{np.round(sigma_K_mid * 100, 5)}", f"%{np.round(v_for_mid * 100, 5)}"]}
+
+    df = pd.DataFrame(df_dict, index=["sigma", "v_for"])
+    print(df)
+    print()
+    # print("bid_ATM_v_for: %", np.round(bid_ATM_v_for*100, 5))
+    # print("ask_ATM_v_for: %", np.round(ask_ATM_v_for*100, 5))
+    # print("ATM_v_for_diff: %", np.round(ATM_v_for_diff*100, 5))
+    print("v_for diff: %", np.round((v_for_ask - v_for_bid)*100, 4))
+    return df
 
 
-v_for = myparams.BS(call_put, K, sigma_K)["v_for"]
-# print("forward parity:", np.round(myparams.f, 4))
-print(f"strike {K} sigma: %", np.round(sigma_K * 100, 4))
-print(f"strike {K} v_for: %", np.round(v_for * 100, 4))
-print(myparams.calc_TV_greeks(call_put, K))  # Calculate and print the TV greeks for the given strike
-fig = myparams.plot_smile_K()  # Plot the implied volatility smile for the SPI model
-fig.show()
+buy_sell = "BUY"
+call_put = "PUT"
+K = 41.0
+
+rd_spread = 0.0 / 100
+rf_spread = 0.0 / 100
+ATM_vol_spread = 2.25 / 100
+
+calendar = ql.Turkey()
+basis_dict = {"FOR": ql.Actual360(), "DOM": ql.Actual365Fixed()}
+spot_bd = 1
+eval_date = ql.Date(30, 7, 2025)
+expiry_date = ql.Date(29, 9, 2025)
+delivery_date = ql.Date(30, 9, 2025)
+x = 40.581
+rd_simple = 42.576 / 100
+rf_simple = 4.333 / 100
+sigma_ATM = 11.5 / 100  # ATM volatility
+sigma_RR = 11.75 / 100  # Risk Reversal volatility
+sigma_SQ = 1.75 / 100  # Quoted Strangle volatility
+convention = "Convention A"
+
+if convention == "Convention B":
+    K_ATM_convention = "fwd"
+    delta_convention = "spot"
+elif convention == "Convention A":
+    K_ATM_convention = "fwd_delta_neutral"
+    delta_convention = "spot_pa"
+
+delta_tilde = 0.25  # pillar smile delta, e.g. 0.25 or 0.10
+calc_tx_with_spreads(
+    buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_spread,
+    calendar, basis_dict, spot_bd, eval_date, expiry_date,
+    delivery_date, x, rd_simple, rf_simple, sigma_ATM, sigma_RR,
+    sigma_SQ, delta_tilde=delta_tilde, K_ATM_convention=K_ATM_convention,
+    delta_convention=delta_convention)
+
+
+
+# # run the calculation
+# strike_list_1M_CALL = [42.0, 42.5, 43.5, 44.5, 46.0]
+# strike_list_1M_PUT = [41.75, 41.5, 41.25, 41.0, 40.5]
+# strike_list_2M_CALL = [43.5, 44.0, 46.5, 48.0, 52.0]
+# strike_list_2M_PUT = [43.0, 42.5, 42.0, 41.5, 41.0]
+# strike_list_47D_CALL = [43.0, 43.5, 46.0, 47.5, 51.0]
+# strike_list_47D_PUT = [42.25, 42.0, 41.5, 41.0, 40.5]
+
+
+
+def write_to_excel(strike_list):
+    import xlwings as xw
+    book = xw.Book()
+    sheet = book.sheets[0]
+    current_row = 1
+    for call_put in ["CALL", "PUT"]:
+        if call_put == "CALL":
+            strike_list = strike_list_2M_CALL
+        else:
+            strike_list = strike_list_2M_PUT
+
+        for K in strike_list:
+            # DataFrames
+            df_conv_1 = calc_tx_with_spreads(
+                buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_spread,
+                calendar, basis_dict, spot_bd, eval_date, expiry_date,
+                delivery_date, x, rd_simple, rf_simple, sigma_ATM, sigma_RR,
+                sigma_SQ, delta_tilde=delta_tilde, K_ATM_convention="fwd_delta_neutral",
+                delta_convention="spot_pa"
+            )
+            df_conv_2 = calc_tx_with_spreads(
+                buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_spread,
+                calendar, basis_dict, spot_bd, eval_date, expiry_date,
+                delivery_date, x, rd_simple, rf_simple, sigma_ATM, sigma_RR,
+                sigma_SQ, delta_tilde=delta_tilde, K_ATM_convention="fwd",
+                delta_convention="spot"
+            )
+
+            start_group_row = current_row  # Track top of group
+
+            # ----- Main Title -----
+            title_cell = sheet.range((current_row, 1))
+            title_cell.value = f"Results for {buy_sell} {call_put} @ {K}"
+            sheet.range((current_row, 1), (current_row, 9)).merge()
+            title_cell.api.HorizontalAlignment = -4108  # Center
+            title_cell.api.Font.Bold = True
+            current_row += 1
+
+            # ----- Convention Headers -----
+            convA_cell = sheet.range((current_row, 1))
+            convA_cell.value = "Convention A"
+            sheet.range((current_row, 1), (current_row, 4)).merge()
+            convA_cell.api.HorizontalAlignment = -4108
+            convA_cell.api.Font.Bold = True
+
+            convB_cell = sheet.range((current_row, 6))
+            convB_cell.value = "Convention B"
+            sheet.range((current_row, 6), (current_row, 9)).merge()
+            convB_cell.api.HorizontalAlignment = -4108
+            convB_cell.api.Font.Bold = True
+            current_row += 1
+
+            # ----- Tables -----
+            # Convention A
+            tableA = sheet.range((current_row, 1))
+            tableA.value = df_conv_1
+            # Bold headers (row and column names)
+            sheet.range((current_row, 1), (current_row + df_conv_1.shape[0], 4)).api.Font.Bold = True
+
+            # Convention B
+            tableB = sheet.range((current_row, 6))
+            tableB.value = df_conv_2
+            sheet.range((current_row, 6), (current_row + df_conv_2.shape[0], 9)).api.Font.Bold = True
+
+            # Mark bottom of group (last data row)
+            end_group_row = current_row + max(df_conv_1.shape[0], df_conv_2.shape[0])
+
+            # Move down for next group
+            current_row = end_group_row + 3
+
+            # ----- Apply Perimeter Borders (No Inner Borders) -----
+            border_range = sheet.range((start_group_row, 1), (end_group_row, 9))
+
+            # Left, top, right, bottom borders only
+            for border_id in [7, 8, 9, 10]:  # xlEdgeLeft=7, xlEdgeTop=8, xlEdgeBottom=9, xlEdgeRight=10
+                border = border_range.api.Borders(border_id)
+                border.LineStyle = 1       # Continuous line
+                border.Weight = 4          # xlThick = 4
+
+            # Remove any inside borders (optional safety)
+            for border_id in [11, 12]:  # xlInsideVertical=11, xlInsideHorizontal=12
+                border_range.api.Borders(border_id).LineStyle = 0  # xlLineStyleNone

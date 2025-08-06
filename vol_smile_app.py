@@ -1,3 +1,13 @@
+# Add this at the top of vol_smile_app.py
+import sys
+from pathlib import Path
+
+# Add current directory to Python path
+sys.path.append(str(Path(__file__).parent))
+
+# Now import using actual filename
+from FX_Option_Pricer import calc_tx_with_spreads
+
 import streamlit as st
 import QuantLib as ql
 from FX_Option_Pricer import calc_tx_with_spreads

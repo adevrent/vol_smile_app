@@ -23,9 +23,9 @@ with col2:
 basis_dict = {"FOR": basis_map[basis_for], "DOM": basis_map[basis_dom]}
 
 # 2) Dates as text inputs
-eval_date_str     = st.text_input("Eval Date (YYYY-MM-DD)", placeholder="2025-07-08")
-expiry_date_str   = st.text_input("Expiry Date (YYYY-MM-DD)", placeholder="2025-07-23")
-delivery_date_str = st.text_input("Delivery Date (YYYY-MM-DD)", placeholder="2025-07-24")
+eval_date_str     = st.text_input("Eval Date (YYYY-MM-DD)", placeholder="e.g. 2025-07-08")
+expiry_date_str   = st.text_input("Expiry Date (YYYY-MM-DD)", placeholder="e.g. 2025-07-23")
+delivery_date_str = st.text_input("Delivery Date (YYYY-MM-DD)", placeholder="e.g. 2025-07-24")
 
 def parse_ql_date(s: str) -> ql.Date:
     try:
@@ -65,7 +65,11 @@ K_str = st.text_input("Strike Price", placeholder="e.g. 41.00")
 call_put = st.selectbox("CALL/PUT", ["CALL","PUT"], index=0)
 buy_sell = st.selectbox("BUY/SELL", ["BUY","SELL"], index=0)
 
-# 7) Compute
+# 7) Default values
+spot_bd = 1
+calendar = ql.Turkey()
+
+# 8) Compute
 if st.button("Compute"):
     # parse dates
     eval_date     = parse_ql_date(eval_date_str)
@@ -89,20 +93,17 @@ if st.button("Compute"):
         st.error(f"Numeric input error: {e}")
         st.stop()
 
-spot_bd = 1
-calendar = ql.Turkey()
+    df, mid_params = calc_tx_with_spreads(
+        buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_spread,
+        calendar, basis_dict, spot_bd, eval_date, expiry_date,
+        delivery_date, x, rd_simple, rf_simple, sigma_ATM, sigma_RR,
+        sigma_SQ, delta_tilde=delta_tilde, K_ATM_convention=K_ATM_convention,
+        delta_convention=delta_convention)
 
-df, mid_params = calc_tx_with_spreads(
-    buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_spread,
-    calendar, basis_dict, spot_bd, eval_date, expiry_date,
-    delivery_date, x, rd_simple, rf_simple, sigma_ATM, sigma_RR,
-    sigma_SQ, delta_tilde=delta_tilde, K_ATM_convention=K_ATM_convention,
-    delta_convention=delta_convention)
-
-# display
-st.text(f"Forward Parity: {np.round(mid_params.f, 4)}")
-st.text("")
-st.text(f"ATM Strike Convention: {K_ATM_convention}")
-st.text(f"Delta convention: {delta_convention}")
-st.text(f"@{K:.3f} {buy_sell} {call_put} results :")
-st.table(df)
+    # display
+    st.text(f"Forward Parity: {np.round(mid_params.f, 4)}")
+    st.text("")
+    st.text(f"ATM Strike Convention: {K_ATM_convention}")
+    st.text(f"Delta convention: {delta_convention}")
+    st.text(f"@{K:.3f} {buy_sell} {call_put} results :")
+    st.table(df)

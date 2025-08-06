@@ -637,7 +637,7 @@ def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_sp
     # print("ask_ATM_v_for: %", np.round(ask_ATM_v_for*100, 5))
     # print("ATM_v_for_diff: %", np.round(ATM_v_for_diff*100, 5))
     print("v_for diff: %", np.round((v_for_ask - v_for_bid)*100, 4))
-    return df
+    return df, mid_params
 
 
 buy_sell = "BUY"
@@ -670,12 +670,12 @@ elif convention == "Convention A":
     delta_convention = "spot_pa"
 
 delta_tilde = 0.25  # pillar smile delta, e.g. 0.25 or 0.10
-# calc_tx_with_spreads(
-#     buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_spread,
-#     calendar, basis_dict, spot_bd, eval_date, expiry_date,
-#     delivery_date, x, rd_simple, rf_simple, sigma_ATM, sigma_RR,
-#     sigma_SQ, delta_tilde=delta_tilde, K_ATM_convention=K_ATM_convention,
-#     delta_convention=delta_convention)
+calc_tx_with_spreads(
+    buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_spread,
+    calendar, basis_dict, spot_bd, eval_date, expiry_date,
+    delivery_date, x, rd_simple, rf_simple, sigma_ATM, sigma_RR,
+    sigma_SQ, delta_tilde=delta_tilde, K_ATM_convention=K_ATM_convention,
+    delta_convention=delta_convention)
 
 
 

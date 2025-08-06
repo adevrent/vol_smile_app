@@ -1,12 +1,8 @@
 import streamlit as st
 import os, sys
 
-# DEBUG: show working directory and its contents
-st.write("**DEBUG — Working directory:**", os.getcwd())
-st.write("**DEBUG — Directory listing:**", os.listdir())
-
 import QuantLib as ql
-from FX_Option_Pricer import calc_tx_with_spreads
+from FX_option_pricer import calc_tx_with_spreads
 import numpy as np
 import scipy.stats as ss
 import pandas as pd

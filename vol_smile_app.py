@@ -1,11 +1,10 @@
-# Add this at the top of vol_smile_app.py
-import sys
-from pathlib import Path
-
-# Add current directory to Python path
-sys.path.append(str(Path(__file__).parent))
-
 import streamlit as st
+import os, sys
+
+# DEBUG: show working directory and its contents
+st.write("**DEBUG — Working directory:**", os.getcwd())
+st.write("**DEBUG — Directory listing:**", os.listdir())
+
 import QuantLib as ql
 from FX_Option_Pricer import calc_tx_with_spreads
 import numpy as np
@@ -79,13 +78,13 @@ if st.button("Compute"):
 
     # parse numbers
     try:
-        x         = float(x_str)
+        x = float(x_str)
         rd_simple = float(rd_str) / 100
         rf_simple = float(rf_str) / 100
         sigma_ATM = float(sigma_ATM_str) / 100
         sigma_RR  = float(sigma_RR_str)  / 100
         sigma_SQ  = float(sigma_SQ_str)  / 100
-        K         = float(K_str)
+        K = float(K_str)
         rd_spread = float(rd_spread_str) / 100
         rf_spread = float(rf_spread_str) / 100
         ATM_vol_spread = float(ATM_vol_spread_str) / 100

@@ -127,6 +127,7 @@ df = calc_tx_with_spreads(
         K_ATM_convention=K_ATM_conv,
         delta_convention=delta_conv
     )
+
 # display
 st.text(f"MID Forward Parity: {np.round(params.f, 4)}")
 st.text("")

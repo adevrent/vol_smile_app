@@ -6,8 +6,6 @@ import datetime as dt
 from scipy.optimize import root_scalar
 from matplotlib import pyplot as plt
 from utils import convert_datetype, convert_simple_to_ccomp
-import xlwings as xw
-
 
 valid_K_ATM_conventions = ["fwd", "fwd_delta_neutral", "spot"]
 valid_delta_conventions = ["spot", "spot_pa", "fwd"]
@@ -672,12 +670,12 @@ elif convention == "Convention A":
     delta_convention = "spot_pa"
 
 delta_tilde = 0.25  # pillar smile delta, e.g. 0.25 or 0.10
-calc_tx_with_spreads(
-    buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_spread,
-    calendar, basis_dict, spot_bd, eval_date, expiry_date,
-    delivery_date, x, rd_simple, rf_simple, sigma_ATM, sigma_RR,
-    sigma_SQ, delta_tilde=delta_tilde, K_ATM_convention=K_ATM_convention,
-    delta_convention=delta_convention)
+# calc_tx_with_spreads(
+#     buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_spread,
+#     calendar, basis_dict, spot_bd, eval_date, expiry_date,
+#     delivery_date, x, rd_simple, rf_simple, sigma_ATM, sigma_RR,
+#     sigma_SQ, delta_tilde=delta_tilde, K_ATM_convention=K_ATM_convention,
+#     delta_convention=delta_convention)
 
 
 

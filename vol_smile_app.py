@@ -100,7 +100,7 @@ if st.button("Compute"):
         sigma_SQ, delta_tilde=delta_tilde, K_ATM_convention=K_ATM_convention,
         delta_convention=delta_convention)
 
-    df.index = ["Smile Volatility (%)", "Price (FOR)"]
+    df.index = ["Smile Volatility (%)", "Price (%) (FOR)"]
 
     # display
     st.text(f"Forward Parity: {np.round(mid_params.f, 4)}")

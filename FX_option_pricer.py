@@ -143,19 +143,19 @@ class OptionParams:
             K = self.x * np.exp(-phi * ss.norm.ppf(phi * np.exp(self.rf*self.tau_360) * delta_S) * sigma * np.sqrt(self.tau_365) + sigma * theta_plus * self.tau_365)
             return K
         elif self.delta_convention.lower() == "spot_pa":
-            print("Inside calc_strike with spot_pa delta convention")
+            # print("Inside calc_strike with spot_pa delta convention")
             delta_S = delta
             """using delta_S_pa as vanilla delta_S to calculate K_max
             because premium-adjusted delta for a strike K is always
             SMALLER than the non-adjusted delta corresponding to
             the same strike"""
             K_npa = self.x * np.exp(-phi * ss.norm.ppf(phi * np.exp(self.rf*self.tau_360) * delta_S) * sigma * np.sqrt(self.tau_365) + sigma * theta_plus * self.tau_365)
-            print("K_npa:", K_npa)
+            # print("K_npa:", K_npa)
             K_max = K_npa
             K_min = self.solve_K_min(sigma, K_max, eps=eps, max_iter=1000)
 
-            print("K_min:", K_min)
-            print("K_max:", K_max)
+            # print("K_min:", K_min)
+            # print("K_max:", K_max)
 
             def f(K):
                 print()
@@ -440,6 +440,7 @@ class OptionParams:
         max_expansions = 10
 
         while expansions < max_expansions:
+            print(f"Expansion #{expansions + 1}")
             f_min = f(vol_min)
             f_max = f(vol_max)
 

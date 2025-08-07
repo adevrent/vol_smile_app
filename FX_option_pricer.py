@@ -432,8 +432,8 @@ class OptionParams:
             # obj = self.sigma_ATM + c1 * (call_delta - self.delta_ATM) + c2 * (call_delta - self.delta_ATM)**2 - sigma
             return obj
 
-        rr_coef = 1.5
-        
+        rr_coef = 0.3
+
         print("self.sigma_ATM:", self.sigma_ATM)
         print("self.sigma_RR:", self.sigma_RR)
         print("sigma_S:", sigma_S)
@@ -443,7 +443,7 @@ class OptionParams:
         print("vol_max:", vol_max)
         
         expansions = 0
-        max_expansions = 10
+        max_expansions = 20
 
         while expansions < max_expansions:
             print(f"Expansion #{expansions + 1}")
@@ -466,7 +466,7 @@ class OptionParams:
                     maxiter=max_iter
                 )
                 sigma_K = res.root
-                # print(f"sigma_{K:.2f}: %{sigma_K*100:.2f}")
+                print(f"BrentQ method used, sigma for K={K}: %", np.round(sigma_K*100, 4))
                 return sigma_K
 
             else:
@@ -686,16 +686,16 @@ def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_sp
     sigma_K_bid = mid_params.get_vol_from_price(v_dom_bid, K, call_put)
     sigma_K_ask = mid_params.get_vol_from_price(v_dom_ask, K, call_put)
 
-    # print("_" * 40)
-    # print()
-    # print(f"TX results for {buy_sell.upper()} {call_put.upper()} @ K = {K}:")
-    # print()
-    # print("Domestic Rate (rd):", np.round(rd * 100, 4), "%")
-    # print("Foreign Rate (rf):", np.round(rf * 100, 4), "%")
-    # print()
-    # print(f"MID Forward Parity: {np.round(mid_params.f, 4)}")
-    # print()
-    # print(f"ATM Strike Convention: {K_ATM_convention}\nDelta convention: {delta_convention}\n@{K:.3f} {call_put} results :")
+    print("_" * 40)
+    print()
+    print(f"TX results for {buy_sell.upper()} {call_put.upper()} @ K = {K}:")
+    print()
+    print("Domestic Rate (rd):", np.round(rd * 100, 4), "%")
+    print("Foreign Rate (rf):", np.round(rf * 100, 4), "%")
+    print()
+    print(f"MID Forward Parity: {np.round(mid_params.f, 4)}")
+    print()
+    print(f"ATM Strike Convention: {K_ATM_convention}\nDelta convention: {delta_convention}\n@{K:.3f} {call_put} results :")
 
     df_dict = {"BID": [f"%{np.round(sigma_K_bid * 100, 5)}", f"%{np.round(v_for_bid * 100, 5)}"],
                "ASK": [f"%{np.round(sigma_K_ask * 100, 5)}", f"%{np.round(v_for_ask * 100, 5)}"],
@@ -707,5 +707,45 @@ def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_sp
     # print("bid_ATM_v_for: %", np.round(bid_ATM_v_for*100, 5))
     # print("ask_ATM_v_for: %", np.round(ask_ATM_v_for*100, 5))
     # print("ATM_v_for_diff: %", np.round(ATM_v_for_diff*100, 5))
-    print("v_for diff: %", np.round((v_for_ask - v_for_bid)*100, 4))
+    # print("v_for diff: %", np.round((v_for_ask - v_for_bid)*100, 4))
     return df, mid_params
+
+# # DEBUG
+# call_put = "CALL"
+# buy_sell = "BUY"
+
+# # 7) Default values
+# spot_bd = 1
+# calendar = ql.Turkey()
+
+# # 8) Compute
+# eval_date     = ql.Date(7, 8, 2025)
+# expiry_date   = ql.Date(8, 10, 2025)
+# delivery_date = ql.Date(9, 10, 2025)
+
+# basis_dict = {"FOR":ql.Actual360(),
+#               "DOM":ql.Actual360(),}
+
+# x = 40.65
+# rd_simple = 45.55 / 100
+# rf_simple = 4.30 / 100
+# sigma_ATM = 5 / 100
+# sigma_RR  = 15.32  / 100
+# sigma_SQ  = 4  / 100
+# K = 52
+# rd_spread = 1 / 100
+# rf_spread = 0 / 100
+# ATM_vol_spread = 3 / 100
+# delta_tilde = 0.25
+# K_ATM_convention = "fwd_delta_neutral"  # or "spot"
+# delta_convention = "spot_pa"  # or "spot", "fwd",
+
+# df, mid_params = calc_tx_with_spreads(
+#     buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_spread,
+#     calendar, basis_dict, spot_bd, eval_date, expiry_date,
+#     delivery_date, x, rd_simple, rf_simple, sigma_ATM, sigma_RR,
+#     sigma_SQ, delta_tilde=delta_tilde, K_ATM_convention=K_ATM_convention,
+#     delta_convention=delta_convention)
+
+# print("forward parity:", mid_params.f)
+# print("K_ATM:", mid_params.K_ATM)

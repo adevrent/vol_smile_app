@@ -242,7 +242,7 @@ class OptionParams:
             if K_min is np.nan or K_min <= 0:
                 raise ValueError("K_min is not a valid positive number.")
 
-            print(f"K_min found: {K_min}")
+            # print(f"K_min found: {K_min}")
             return K_min
 
         except ValueError:
@@ -455,6 +455,7 @@ class OptionParams:
 
 
             if np.sign(f_min) != np.sign(f_max):
+                print("if block entered")
                 # find root
                 res = root_scalar(
                     f,
@@ -469,13 +470,14 @@ class OptionParams:
                 return sigma_K
 
             else:
+                ("else block entered")
                 vol_min = np.maximum(vol_min * 0.8, 1e-6)  # Lower bound for vol_min
                 vol_max *= 1.2  # Expand upper bound for vol_max
                 expansions += 1
 
         # If we reach here, we didn't find a root in the initial bracket
+        print(f"Failed to find root sigma_K after {expansions} expansions.")
         sigma_K = 0.0
-        print(f"Failed to find root for sigma_K={sigma_K} after {expansions} expansions.")
         return sigma_K
 
         # # Adaptive bracket expansion
@@ -675,16 +677,16 @@ def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_sp
     sigma_K_bid = mid_params.get_vol_from_price(v_dom_bid, K, call_put)
     sigma_K_ask = mid_params.get_vol_from_price(v_dom_ask, K, call_put)
 
-    print("_" * 40)
-    print()
-    print(f"TX results for {buy_sell.upper()} {call_put.upper()} @ K = {K}:")
-    print()
-    print("Domestic Rate (rd):", np.round(rd * 100, 4), "%")
-    print("Foreign Rate (rf):", np.round(rf * 100, 4), "%")
-    print()
-    print(f"MID Forward Parity: {np.round(mid_params.f, 4)}")
-    print()
-    print(f"ATM Strike Convention: {K_ATM_convention}\nDelta convention: {delta_convention}\n@{K:.3f} {call_put} results :")
+    # print("_" * 40)
+    # print()
+    # print(f"TX results for {buy_sell.upper()} {call_put.upper()} @ K = {K}:")
+    # print()
+    # print("Domestic Rate (rd):", np.round(rd * 100, 4), "%")
+    # print("Foreign Rate (rf):", np.round(rf * 100, 4), "%")
+    # print()
+    # print(f"MID Forward Parity: {np.round(mid_params.f, 4)}")
+    # print()
+    # print(f"ATM Strike Convention: {K_ATM_convention}\nDelta convention: {delta_convention}\n@{K:.3f} {call_put} results :")
 
     df_dict = {"BID": [f"%{np.round(sigma_K_bid * 100, 5)}", f"%{np.round(v_for_bid * 100, 5)}"],
                "ASK": [f"%{np.round(sigma_K_ask * 100, 5)}", f"%{np.round(v_for_ask * 100, 5)}"],

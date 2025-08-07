@@ -432,18 +432,49 @@ class OptionParams:
             # obj = self.sigma_ATM + c1 * (call_delta - self.delta_ATM) + c2 * (call_delta - self.delta_ATM)**2 - sigma
             return obj
 
-        # find root
-        res = root_scalar(
-            f,
-            method='brentq',  # or 'brentq' if you prefer
-            bracket=[self.sigma_ATM - 0.3, self.sigma_ATM + 0.3],  # reasonable bounds for the volatility
-            x0=self.sigma_ATM,  # initial guess
-            xtol=eps,
-            maxiter=max_iter
-        )
-        sigma_K = res.root
-        # print(f"sigma_{K:.2f}: %{sigma_K*100:.2f}")
-        return sigma_K
+        vol_min = np.maximum(self.sigma_ATM - 0.3, 1e-6)  # Ensure vol_min is positive
+        vol_max = self.sigma_ATM + 0.5 * self.sigma_RR + sigma_S
+
+        # Adaptive bracket expansion
+        max_expansions = 20
+        expansions = 0
+
+        while expansions < max_expansions:
+            try:
+                f_min = f(vol_min)
+                f_max = f(vol_max)
+
+                print(f"Bracket: [{vol_min:.6f}, {vol_max:.6f}]")
+                print(f"f(min)={f_min:.6f}, f(max)={f_max:.6f}")
+
+                if np.sign(f_min) != np.sign(f_max):
+                    res = root_scalar(f, method='brentq', bracket=[vol_min, vol_max], xtol=eps, maxiter=100)
+                    sigma_K = res.root
+                    print(f"Found K={K:.6f} after {expansions} expansions")
+                    return sigma_K
+            except Exception as e:
+                print(f"Root finding failed: {e}")
+
+            # Expand brackets
+            vol_min = np.maximum(vol_min * 0.8, 1e-6)
+            vol_max *= 1.2
+
+            expansions += 1
+            print(f"Expanded bracket to [{vol_min:.6f}, {vol_max:.6f}]")
+
+
+        # # old version without adaptive bracket expansion
+        # res = root_scalar(
+        #     f,
+        #     method='brentq',  # or 'brentq' if you prefer
+        #     bracket=[self.sigma_ATM - 0.3, self.sigma_ATM + 0.3],  # reasonable bounds for the volatility
+        #     x0=self.sigma_ATM,  # initial guess
+        #     xtol=eps,
+        #     maxiter=max_iter
+        # )
+        # sigma_K = res.root
+        # # print(f"sigma_{K:.2f}: %{sigma_K*100:.2f}")
+        # return sigma_K
 
     def set_K_C_P(self):
         self.sigma_C = self.sigma_ATM + 0.5 * self.sigma_RR + self.sigma_S

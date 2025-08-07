@@ -178,8 +178,8 @@ class OptionParams:
                     f_min = f(K_min)
                     f_max = f(K_max)
 
-                    print(f"Bracket: [{K_min:.6f}, {K_max:.6f}]")
-                    print(f"f(min)={f_min:.6f}, f(max)={f_max:.6f}")
+                    # print(f"Bracket: [{K_min:.6f}, {K_max:.6f}]")
+                    # print(f"f(min)={f_min:.6f}, f(max)={f_max:.6f}")
 
                     if np.sign(f_min) != np.sign(f_max):
                         res = root_scalar(f, method='brentq', bracket=[K_min, K_max], xtol=eps, maxiter=100)
@@ -193,7 +193,7 @@ class OptionParams:
                 K_min *= 0.8  # Lower min for calls
 
                 expansions += 1
-                print(f"Expanded bracket to [{K_min:.6f}, {K_max:.6f}]")
+                # print(f"Expanded bracket to [{K_min:.6f}, {K_max:.6f}]")
 
             # Final attempt with wider bounds
             try:

@@ -719,26 +719,26 @@ def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_sp
 # calendar = ql.Turkey()
 
 # # 8) Compute
-# eval_date     = ql.Date(7, 8, 2025)
-# expiry_date   = ql.Date(8, 10, 2025)
-# delivery_date = ql.Date(9, 10, 2025)
+# eval_date     = ql.Date(31, 7, 2025)
+# expiry_date   = ql.Date(29, 9, 2025)
+# delivery_date = ql.Date(30, 9, 2025)
 
 # basis_dict = {"FOR":ql.Actual360(),
 #               "DOM":ql.Actual360(),}
 
-# x = 40.65
-# rd_simple = 45.55 / 100
-# rf_simple = 4.30 / 100
+# x = 40.581
+# rd_simple = 42.576 / 100
+# rf_simple = 4.333 / 100
 # sigma_ATM = 5 / 100
-# sigma_RR  = 15.32  / 100
+# sigma_RR  = 11.75  / 100
 # sigma_SQ  = 4  / 100
 # K = 52
-# rd_spread = 1 / 100
+# rd_spread = 0 / 100
 # rf_spread = 0 / 100
 # ATM_vol_spread = 3 / 100
 # delta_tilde = 0.25
-# K_ATM_convention = "fwd_delta_neutral"  # or "spot"
-# delta_convention = "spot_pa"  # or "spot", "fwd",
+# K_ATM_convention = "fwd"  # "fwd", "fwd_delta_neutral"
+# delta_convention = "spot"  # "spot", "spot_pa"
 
 # df, mid_params = calc_tx_with_spreads(
 #     buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_spread,

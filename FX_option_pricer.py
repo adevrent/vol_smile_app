@@ -476,8 +476,16 @@ class OptionParams:
                 expansions += 1
 
         # If we reach here, we didn't find a root in the initial bracket
-        print(f"Failed to find root sigma_K after {expansions} expansions.")
-        sigma_K = 0.0
+        print(f"Failed to find brentq root sigma_K after {expansions} expansions.")
+        # find root
+        res = root_scalar(
+            f,
+            method='secant',  # or 'brentq' if you prefer
+            x0=self.sigma_ATM,  # initial guess
+            xtol=eps,
+            maxiter=max_iter
+        )
+        sigma_K = res.root
         return sigma_K
 
         # # Adaptive bracket expansion

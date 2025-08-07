@@ -433,20 +433,39 @@ class OptionParams:
             return obj
 
         rr_coef = 1.5
-        vol_min = np.maximum(self.sigma_ATM, 1e-6)  # Ensure vol_min is positive
+        vol_min = np.maximum(self.sigma_ATM - rr_coef * self.sigma_RR + sigma_S, 1e-6)  # Ensure vol_min is positive
         vol_max = self.sigma_ATM + rr_coef * self.sigma_RR + sigma_S
 
-        # find root
-        res = root_scalar(
-            f,
-            method='brentq',  # or 'brentq' if you prefer
-            bracket=[vol_min, vol_max],  # reasonable bounds for the volatility
-            x0=self.sigma_ATM,  # initial guess
-            xtol=eps,
-            maxiter=max_iter
-        )
-        sigma_K = res.root
-        # print(f"sigma_{K:.2f}: %{sigma_K*100:.2f}")
+        expansions = 0
+        max_expansions = 10
+
+        while expansions < max_expansions:
+            f_min = f(vol_min)
+            f_max = f(vol_max)
+
+            if np.sign(f_min) != np.sign(f_max):
+                # find root
+                res = root_scalar(
+                    f,
+                    method='brentq',  # or 'brentq' if you prefer
+                    bracket=[vol_min, vol_max],  # reasonable bounds for the volatility
+                    x0=self.sigma_ATM,  # initial guess
+                    xtol=eps,
+                    maxiter=max_iter
+                )
+                sigma_K = res.root
+                # print(f"sigma_{K:.2f}: %{sigma_K*100:.2f}")
+                return sigma_K
+
+            else:
+                vol_min = np.maximum(vol_min * 0.8, 1e-6)  # Lower bound for vol_min
+                vol_max *= 1.2  # Expand upper bound for vol_max
+
+            expansions += 1
+
+        # If we reach here, we didn't find a root in the initial bracket
+        print(f"Failed to find root for sigma_K={sigma_K} after {expansions} expansions.")
+        sigma_K = 0.0
         return sigma_K
 
         # # Adaptive bracket expansion

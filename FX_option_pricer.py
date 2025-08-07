@@ -443,6 +443,10 @@ class OptionParams:
             f_min = f(vol_min)
             f_max = f(vol_max)
 
+            print(f"Bracket: [{vol_min:.6f}, {vol_max:.6f}]")
+            print(f"f(min)={f_min:.6f}, f(max)={f_max:.6f}")
+
+
             if np.sign(f_min) != np.sign(f_max):
                 # find root
                 res = root_scalar(

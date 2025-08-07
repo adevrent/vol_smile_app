@@ -443,7 +443,7 @@ class OptionParams:
         print("vol_max:", vol_max)
         
         expansions = 0
-        max_expansions = 20
+        max_expansions = 10
 
         while expansions < max_expansions:
             print(f"Expansion #{expansions + 1}")
@@ -488,33 +488,6 @@ class OptionParams:
         sigma_K = res.root
         print(f"Secant method used, sigma for K={K}: %", np.round(sigma_K*100, 4))
         return sigma_K
-
-        # # Adaptive bracket expansion
-        # max_expansions = 10
-        # expansions = 0
-
-        # while expansions < max_expansions:
-        #     try:
-        #         f_min = f(vol_min)
-        #         f_max = f(vol_max)
-
-        #         print(f"Bracket: [{vol_min:.6f}, {vol_max:.6f}]")
-        #         print(f"f(min)={f_min:.6f}, f(max)={f_max:.6f}")
-
-        #         if np.sign(f_min) != np.sign(f_max):
-        #             res = root_scalar(f, method='brentq', bracket=[vol_min, vol_max], xtol=eps, maxiter=100)
-        #             sigma_K = res.root
-        #             print(f"Found sigma_K={sigma_K:.6f} after {expansions} expansions")
-        #             return sigma_K
-        #     except Exception as e:
-        #         print(f"Root finding failed: {e}")
-
-        #     # Expand brackets
-        #     vol_min = np.maximum(vol_min * 0.8, 1e-6)
-        #     vol_max *= 1.2
-
-        #     expansions += 1
-        #     print(f"Expanded bracket to [{vol_min:.6f}, {vol_max:.6f}]")
 
     def set_K_C_P(self):
         self.sigma_C = self.sigma_ATM + 0.5 * self.sigma_RR + self.sigma_S
@@ -710,42 +683,42 @@ def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_sp
     # print("v_for diff: %", np.round((v_for_ask - v_for_bid)*100, 4))
     return df, mid_params
 
-# # DEBUG
-# call_put = "CALL"
-# buy_sell = "BUY"
+# DEBUG
+call_put = "CALL"
+buy_sell = "BUY"
 
-# # 7) Default values
-# spot_bd = 1
-# calendar = ql.Turkey()
+# 7) Default values
+spot_bd = 1
+calendar = ql.Turkey()
 
-# # 8) Compute
-# eval_date     = ql.Date(31, 7, 2025)
-# expiry_date   = ql.Date(29, 9, 2025)
-# delivery_date = ql.Date(30, 9, 2025)
+# 8) Compute
+eval_date     = ql.Date(31, 7, 2025)
+expiry_date   = ql.Date(29, 9, 2025)
+delivery_date = ql.Date(30, 9, 2025)
 
-# basis_dict = {"FOR":ql.Actual360(),
-#               "DOM":ql.Actual360(),}
+basis_dict = {"FOR":ql.Actual360(),
+              "DOM":ql.Actual360(),}
 
-# x = 40.581
-# rd_simple = 42.576 / 100
-# rf_simple = 4.333 / 100
-# sigma_ATM = 5 / 100
-# sigma_RR  = 11.75  / 100
-# sigma_SQ  = 4  / 100
-# K = 52
-# rd_spread = 0 / 100
-# rf_spread = 0 / 100
-# ATM_vol_spread = 3 / 100
-# delta_tilde = 0.25
-# K_ATM_convention = "fwd"  # "fwd", "fwd_delta_neutral"
-# delta_convention = "spot"  # "spot", "spot_pa"
+x = 40.581
+rd_simple = 42.576 / 100
+rf_simple = 4.333 / 100
+sigma_ATM = 5 / 100
+sigma_RR  = 11.75  / 100
+sigma_SQ  = 1.75  / 100
+K = 52
+rd_spread = 0 / 100
+rf_spread = 0 / 100
+ATM_vol_spread = 3 / 100
+delta_tilde = 0.25
+K_ATM_convention = "fwd"  # "fwd", "fwd_delta_neutral"
+delta_convention = "spot"  # "spot", "spot_pa"
 
-# df, mid_params = calc_tx_with_spreads(
-#     buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_spread,
-#     calendar, basis_dict, spot_bd, eval_date, expiry_date,
-#     delivery_date, x, rd_simple, rf_simple, sigma_ATM, sigma_RR,
-#     sigma_SQ, delta_tilde=delta_tilde, K_ATM_convention=K_ATM_convention,
-#     delta_convention=delta_convention)
+df, mid_params = calc_tx_with_spreads(
+    buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_spread,
+    calendar, basis_dict, spot_bd, eval_date, expiry_date,
+    delivery_date, x, rd_simple, rf_simple, sigma_ATM, sigma_RR,
+    sigma_SQ, delta_tilde=delta_tilde, K_ATM_convention=K_ATM_convention,
+    delta_convention=delta_convention)
 
-# print("forward parity:", mid_params.f)
-# print("K_ATM:", mid_params.K_ATM)
+print("forward parity:", mid_params.f)
+print("K_ATM:", mid_params.K_ATM)

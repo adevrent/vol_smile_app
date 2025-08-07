@@ -346,43 +346,43 @@ class OptionParams:
             eps (float): Tolerance for the optimization, default is 1e-9.
             max_iter (int): Maximum number of iterations, default is 10000.
         """
-        print("*** Optimizing sigma_S ***")
+        # print("*** Optimizing sigma_S ***")
         if self.delta_convention in ["spot", "fwd"]:
             def f(sigma_S):
                 sigma_CSM = self.find_SPI_sigma_K("CALL", self.K_CSM, sigma_S, optimizing_sigma_S=True)
                 sigma_PSM = self.find_SPI_sigma_K("PUT", self.K_PSM, sigma_S, optimizing_sigma_S=True)
                 if np.isnan(sigma_CSM) or np.isnan(sigma_PSM):
-                    print("sigma_CSM or sigma_PSM is NaN, returning NaN")
+                    # print("sigma_CSM or sigma_PSM is NaN, returning NaN")
                     return np.inf
 
                 v_call = self.BS("CALL", self.K_CSM, sigma_CSM)["v_dom"]
                 v_put = self.BS("PUT",  self.K_PSM, sigma_PSM)["v_dom"]
-                print("    sigma_S optimization objective: %", np.round((v_call + v_put) - self.v_SM, 6)*100)
+                # print("    sigma_S optimization objective: %", np.round((v_call + v_put) - self.v_SM, 6)*100)
                 return (v_call + v_put) - self.v_SM
         elif self.delta_convention == "spot_pa":
             if self.a is None:
-                print("||||| Initial K_P optimization: |||||")
+                # print("||||| Initial K_P optimization: |||||")
                 K_P = self.calc_strike("PUT", self.sigma_SM, -self.delta_tilde)  # Initial value
                 self.a = np.exp(-self.rf * self.tau_360) * K_P/self.f
-                print("        -- Initial K_P =", K_P)
+                # print("        -- Initial K_P =", K_P)
 
             def f(sigma_S):
                 sigma_P = np.maximum(self.sigma_ATM - 0.5*self.sigma_RR + sigma_S, 1e-3)  # Ensure sigma_P is positive
-                print("        -- sigma_P = %", sigma_P*100)
+                # print("        -- sigma_P = %", sigma_P*100)
                 K_P = self.calc_strike("PUT", sigma_P, -self.delta_tilde)  # Update K_P based on sigma_P
-                print("        -- K_P =", K_P)
+                # print("        -- K_P =", K_P)
                 self.a = np.exp(-self.rf * self.tau_360) * K_P/self.f
 
                 sigma_CSM = self.find_SPI_sigma_K("CALL", self.K_CSM, sigma_S, optimizing_sigma_S=True)
                 sigma_PSM = self.find_SPI_sigma_K("PUT", self.K_PSM, sigma_S, optimizing_sigma_S=True)
 
                 if np.isnan(sigma_CSM) or np.isnan(sigma_PSM):
-                    print("sigma_CSM or sigma_PSM is NaN, returning NaN")
+                    # print("sigma_CSM or sigma_PSM is NaN, returning NaN")
                     return np.inf
 
                 v_call = self.BS("CALL", self.K_CSM, sigma_CSM)["v_dom"]
                 v_put = self.BS("PUT",  self.K_PSM, sigma_PSM)["v_dom"]
-                print("    sigma_S optimization objective: %", np.round((v_call + v_put) - self.v_SM, 6)*100)
+                # print("    sigma_S optimization objective: %", np.round((v_call + v_put) - self.v_SM, 6)*100)
                 return (v_call + v_put) - self.v_SM
 
         sigma_S_min = self.sigma_SQ - 0.1
@@ -397,11 +397,11 @@ class OptionParams:
             maxiter=max_iter
         )
         sigma_S_opt = res.root
-        print(f"sigma_S_opt: %{sigma_S_opt*100:.2f}")
+        # print(f"sigma_S_opt: %{sigma_S_opt*100:.2f}")
         self.sigma_S = sigma_S_opt  # update the instance variable
-        print("sigma_CSM %", np.round(self.find_SPI_sigma_K("CALL", self.K_CSM, sigma_S_opt)*100, 4))
-        print("sigma_PSM %", np.round(self.find_SPI_sigma_K("PUT", self.K_PSM, sigma_S_opt)*100, 4))
-        print("v_SM calc: %", np.round(self.BS("CALL", self.K_CSM, self.find_SPI_sigma_K("CALL", self.K_CSM))["v_dom"] + self.BS("PUT", self.K_PSM, self.find_SPI_sigma_K("PUT", self.K_PSM))["v_dom"], 4)*100)
+        # print("sigma_CSM %", np.round(self.find_SPI_sigma_K("CALL", self.K_CSM, sigma_S_opt)*100, 4))
+        # print("sigma_PSM %", np.round(self.find_SPI_sigma_K("PUT", self.K_PSM, sigma_S_opt)*100, 4))
+        # print("v_SM calc: %", np.round(self.BS("CALL", self.K_CSM, self.find_SPI_sigma_K("CALL", self.K_CSM))["v_dom"] + self.BS("PUT", self.K_PSM, self.find_SPI_sigma_K("PUT", self.K_PSM))["v_dom"], 4)*100)
 
         return sigma_S_opt
 
@@ -484,7 +484,7 @@ class OptionParams:
                     maxiter=max_iter
                 )
                 sigma_K = res.root
-                print(f"BrentQ method used, sigma for K={K}: %", np.round(sigma_K*100, 4))
+                # print(f"BrentQ method used, sigma for K={K}: %", np.round(sigma_K*100, 4))
                 return sigma_K
 
             else:
@@ -493,7 +493,7 @@ class OptionParams:
                 expansions += 1
 
         # If we reach here, we didn't find a root in the initial bracket
-        print(f"Failed to find brentq root sigma_K after {expansions} expansions.")
+        # print(f"Failed to find brentq root sigma_K after {expansions} expansions.")
 
     def set_K_C_P(self):
         self.sigma_C = self.sigma_ATM + 0.5 * self.sigma_RR + self.sigma_S

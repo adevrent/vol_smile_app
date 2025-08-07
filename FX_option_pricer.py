@@ -486,6 +486,7 @@ class OptionParams:
             maxiter=max_iter
         )
         sigma_K = res.root
+        
         return sigma_K
 
         # # Adaptive bracket expansion

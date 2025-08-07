@@ -465,8 +465,7 @@ class OptionParams:
             else:
                 vol_min = np.maximum(vol_min * 0.8, 1e-6)  # Lower bound for vol_min
                 vol_max *= 1.2  # Expand upper bound for vol_max
-
-            expansions += 1
+                expansions += 1
 
         # If we reach here, we didn't find a root in the initial bracket
         sigma_K = 0.0

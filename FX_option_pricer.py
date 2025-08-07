@@ -79,6 +79,8 @@ class OptionParams:
         elif K_ATM_convention.lower() == "spot":
             self.K_ATM = self.x
 
+        print("self.K_ATM:", np.round(self.K_ATM, 2))
+
         self.delta_ATM = self.BS("CALL", self.K_ATM, self.sigma_ATM)["delta_S"]  # spot delta of ATM call option, to be used in strangle calculation
 
         # SPI params
@@ -86,13 +88,13 @@ class OptionParams:
         print("...." * 50)
         print("Calculating K_CSM")
         self.K_CSM = self.calc_strike("CALL", self.sigma_SM, self.delta_tilde)  # Call strike at delta pillar with MARKET STRANGLE VOL !
-        print("K_CSM:", self.K_CSM)
+        print("K_CSM:", np.round(self.K_CSM, 2))
         print("K_CSM pa delta:", np.round(self.BS("CALL", self.K_CSM, self.sigma_SM)["delta_S_pa"] * 100, 4))
         print()
         print("Calculating K_PSM")
 
         self.K_PSM = self.calc_strike("PUT", self.sigma_SM, -self.delta_tilde)  # Put strike at delta pillar with MARKET STRANGLE VOL !
-        print("K_PSM:", self.K_PSM)
+        print("K_PSM:", np.round(self.K_PSM, 2))
         print("K_PSM pa delta:", np.round(self.BS("PUT", self.K_PSM, self.sigma_SM)["delta_S_pa"] * 100, 4))
         print("...." * 50)
 
@@ -154,8 +156,8 @@ class OptionParams:
             K_max = K_npa
             K_min = self.solve_K_min(sigma, K_max, eps=eps, max_iter=1000)
 
-            # print("K_min:", K_min)
-            # print("K_max:", K_max)
+            print("K_min:", K_min)
+            print("K_max:", K_max)
 
             def f(K):
                 print()
@@ -335,7 +337,7 @@ class OptionParams:
         sigma = self.sigma_ATM + c1*(delta_call - self.delta_ATM) + c2*(delta_call - self.delta_ATM)**2
         return sigma
 
-    def optimize_sigma_S(self, eps=1e-9, max_iter=10000):
+    def optimize_sigma_S(self, eps=1e-6, max_iter=10000):
         """
         Calibrate sigma_S (smile-strangle vol) so that the
         SPI strangle price matches the market strangle value.
@@ -344,10 +346,14 @@ class OptionParams:
             eps (float): Tolerance for the optimization, default is 1e-9.
             max_iter (int): Maximum number of iterations, default is 10000.
         """
+        print("*** Optimizing sigma_S ***")
         if self.delta_convention in ["spot", "fwd"]:
             def f(sigma_S):
-                sigma_CSM = self.find_SPI_sigma_K("CALL", self.K_CSM, sigma_S)
-                sigma_PSM = self.find_SPI_sigma_K("PUT", self.K_PSM, sigma_S)
+                sigma_CSM = self.find_SPI_sigma_K("CALL", self.K_CSM, sigma_S, optimizing_sigma_S=True)
+                sigma_PSM = self.find_SPI_sigma_K("PUT", self.K_PSM, sigma_S, optimizing_sigma_S=True)
+                if np.isnan(sigma_CSM) or np.isnan(sigma_PSM):
+                    print("sigma_CSM or sigma_PSM is NaN, returning NaN")
+                    return np.inf
 
                 v_call = self.BS("CALL", self.K_CSM, sigma_CSM)["v_dom"]
                 v_put = self.BS("PUT",  self.K_PSM, sigma_PSM)["v_dom"]
@@ -367,20 +373,25 @@ class OptionParams:
                 print("        -- K_P =", K_P)
                 self.a = np.exp(-self.rf * self.tau_360) * K_P/self.f
 
-                sigma_CSM = self.find_SPI_sigma_K("CALL", self.K_CSM, sigma_S)
-                sigma_PSM = self.find_SPI_sigma_K("PUT", self.K_PSM, sigma_S)
+                sigma_CSM = self.find_SPI_sigma_K("CALL", self.K_CSM, sigma_S, optimizing_sigma_S=True)
+                sigma_PSM = self.find_SPI_sigma_K("PUT", self.K_PSM, sigma_S, optimizing_sigma_S=True)
+
+                if np.isnan(sigma_CSM) or np.isnan(sigma_PSM):
+                    print("sigma_CSM or sigma_PSM is NaN, returning NaN")
+                    return np.inf
 
                 v_call = self.BS("CALL", self.K_CSM, sigma_CSM)["v_dom"]
                 v_put = self.BS("PUT",  self.K_PSM, sigma_PSM)["v_dom"]
                 print("    sigma_S optimization objective: %", np.round((v_call + v_put) - self.v_SM, 6)*100)
                 return (v_call + v_put) - self.v_SM
 
-        lowest_vol_sum = np.minimum(self.sigma_ATM + self.sigma_RR/2, self.sigma_ATM - self.sigma_RR/2)
+        sigma_S_min = self.sigma_SQ - 0.1
+        sigma_S_max = self.sigma_SQ + 0.1
         # find root
         res = root_scalar(
             f,
-            method='brentq',  #TODO
-            bracket=[-lowest_vol_sum + 1e-3, self.sigma_SQ + 0.1],
+            method='secant',  #TODO
+            bracket=[sigma_S_min, sigma_S_max],
             xtol=eps,
             x0=self.sigma_SQ,  # initial guess
             maxiter=max_iter
@@ -388,18 +399,21 @@ class OptionParams:
         sigma_S_opt = res.root
         print(f"sigma_S_opt: %{sigma_S_opt*100:.2f}")
         self.sigma_S = sigma_S_opt  # update the instance variable
-
+        print("sigma_CSM %", np.round(self.find_SPI_sigma_K("CALL", self.K_CSM, sigma_S_opt)*100, 4))
+        print("sigma_PSM %", np.round(self.find_SPI_sigma_K("PUT", self.K_PSM, sigma_S_opt)*100, 4))
         print("v_SM calc: %", np.round(self.BS("CALL", self.K_CSM, self.find_SPI_sigma_K("CALL", self.K_CSM))["v_dom"] + self.BS("PUT", self.K_PSM, self.find_SPI_sigma_K("PUT", self.K_PSM))["v_dom"], 4)*100)
 
         return sigma_S_opt
 
-    def find_SPI_sigma_K(self, call_put, K, sigma_S=None, eps=1e-6, max_iter=10000):
+    def find_SPI_sigma_K(self, call_put, K, sigma_S=None, eps=1e-6, max_iter=10000, optimizing_sigma_S=False):
         """
         Find the implied volatility for a given strike K using the SPI model.
 
         Args:
             K (float): Strike price for which to find the implied volatility.
         """
+
+        print(f"-- Inside find_SPI_sigma_K for K={K} --")
         if not sigma_S:
             sigma_S = self.sigma_S
 
@@ -407,20 +421,18 @@ class OptionParams:
         if self.delta_convention.lower() == "spot":
             delta_type = "delta_S"
             a = self.a
-            c1 = self.calc_c1(sigma_S, a)
-            c2 = self.calc_c2(sigma_S, a)
         elif self.delta_convention.lower() == "fwd":
             delta_type = "delta_fwd"
             a = self.a
-            c1 = self.calc_c1(sigma_S, a)
-            c2 = self.calc_c2(sigma_S, a)
         elif self.delta_convention.lower() == "spot_pa":
             delta_type = "delta_S_pa"
             a = np.exp(-self.rf * self.tau_360) * K/self.f
-            c1 = self.calc_c1(sigma_S, a)
-            c2 = self.calc_c2(sigma_S, a)
         else:
             raise NotImplementedError(f"Delta convention {self.delta_convention} not implemented.")
+
+        rr_coef = 0.3
+        vol_min = np.maximum(self.sigma_ATM - rr_coef * self.sigma_RR + sigma_S, 3e-2)  # Ensure vol_min is positive
+        vol_max = self.sigma_ATM + rr_coef * self.sigma_RR + sigma_S
 
         def f(sigma):
             if call_put.lower() == "put":
@@ -428,22 +440,28 @@ class OptionParams:
                 call_delta = delta + a
             else:
                 call_delta = self.BS("CALL", K, sigma)[delta_type]
-            obj = self.calc_sigma_from_delta(call_delta, sigma_S) - sigma
+            obj = self.calc_sigma_from_delta(call_delta, sigma_S, a) - sigma
             # obj = self.sigma_ATM + c1 * (call_delta - self.delta_ATM) + c2 * (call_delta - self.delta_ATM)**2 - sigma
             return obj
 
-        rr_coef = 0.3
+        # if optimizing_sigma_S:
+        f_array = np.vectorize(f)(np.linspace(0.001, 0.5, 1000))
+        # if all have same sign, return np.nan
+        if np.all(np.sign(f_array) == np.sign(f_array[0])):
+            return np.nan
 
-        print("self.sigma_ATM:", self.sigma_ATM)
-        print("self.sigma_RR:", self.sigma_RR)
-        print("sigma_S:", sigma_S)
-        vol_min = np.maximum(self.sigma_ATM - rr_coef * self.sigma_RR + sigma_S, 1e-6)  # Ensure vol_min is positive
-        vol_max = self.sigma_ATM + rr_coef * self.sigma_RR + sigma_S
-        print("vol_min:", vol_min)
-        print("vol_max:", vol_max)
-        
+        # ## DEBUG ##
+        # sigma_list = np.linspace(0.001, 0.5, 1000)
+        # plt.plot(sigma_list, f_array, label='Objective Function')
+        # plt.title(f"Sigma_S = %{100*sigma_S:.4f}, K = {K:.4f}")
+        # plt.grid()
+        # plt.axhline(0, color='red', linestyle='--', label='Zero Line')
+        # plt.show()
+
+
         expansions = 0
         max_expansions = 10
+        expansion_multi = 0.8
 
         while expansions < max_expansions:
             print(f"Expansion #{expansions + 1}")
@@ -455,7 +473,7 @@ class OptionParams:
 
 
             if np.sign(f_min) != np.sign(f_max):
-                print("if block entered")
+                print("  if block entered")
                 # find root
                 res = root_scalar(
                     f,
@@ -470,24 +488,12 @@ class OptionParams:
                 return sigma_K
 
             else:
-                ("else block entered")
-                vol_min = np.maximum(vol_min * 0.8, 1e-6)  # Lower bound for vol_min
-                vol_max *= 1.2  # Expand upper bound for vol_max
+                vol_min = np.maximum(vol_min * expansion_multi, 1e-6)  # Lower bound for vol_min
+                vol_max *= (1+expansion_multi)  # Expand upper bound for vol_max
                 expansions += 1
 
         # If we reach here, we didn't find a root in the initial bracket
         print(f"Failed to find brentq root sigma_K after {expansions} expansions.")
-        # find root
-        res = root_scalar(
-            f,
-            method='secant',  # or 'brentq' if you prefer
-            x0=self.sigma_ATM,  # initial guess
-            xtol=eps,
-            maxiter=max_iter
-        )
-        sigma_K = res.root
-        print(f"Secant method used, sigma for K={K}: %", np.round(sigma_K*100, 4))
-        return sigma_K
 
     def set_K_C_P(self):
         self.sigma_C = self.sigma_ATM + 0.5 * self.sigma_RR + self.sigma_S
@@ -683,42 +689,42 @@ def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_sp
     # print("v_for diff: %", np.round((v_for_ask - v_for_bid)*100, 4))
     return df, mid_params
 
-# DEBUG
-call_put = "CALL"
-buy_sell = "BUY"
+# # DEBUG
+# call_put = "CALL"
+# buy_sell = "BUY"
 
-# 7) Default values
-spot_bd = 1
-calendar = ql.Turkey()
+# # 7) Default values
+# spot_bd = 1
+# calendar = ql.Turkey()
 
-# 8) Compute
-eval_date     = ql.Date(31, 7, 2025)
-expiry_date   = ql.Date(29, 9, 2025)
-delivery_date = ql.Date(30, 9, 2025)
+# # 8) Compute
+# eval_date     = ql.Date(7, 8, 2025)
+# expiry_date   = ql.Date(8, 10, 2025)
+# delivery_date = ql.Date(9, 10, 2025)
 
-basis_dict = {"FOR":ql.Actual360(),
-              "DOM":ql.Actual360(),}
+# basis_dict = {"FOR":ql.Actual360(),
+#               "DOM":ql.Actual360(),}
 
-x = 40.581
-rd_simple = 42.576 / 100
-rf_simple = 4.333 / 100
-sigma_ATM = 5 / 100
-sigma_RR  = 11.75  / 100
-sigma_SQ  = 1.75  / 100
-K = 52
-rd_spread = 0 / 100
-rf_spread = 0 / 100
-ATM_vol_spread = 3 / 100
-delta_tilde = 0.25
-K_ATM_convention = "fwd"  # "fwd", "fwd_delta_neutral"
-delta_convention = "spot"  # "spot", "spot_pa"
+# x = 40.65
+# rd_simple = 45.55 / 100
+# rf_simple = 4.30 / 100
+# sigma_ATM = 5 / 100
+# sigma_RR  = 15.32 / 100
+# sigma_SQ  = 4  / 100
+# K = 50
+# rd_spread = 1 / 100
+# rf_spread = 0 / 100
+# ATM_vol_spread = 3 / 100
+# delta_tilde = 0.25
+# K_ATM_convention = "fwd"  # "fwd", "fwd_delta_neutral"
+# delta_convention = "spot"  # "spot", "spot_pa"
 
-df, mid_params = calc_tx_with_spreads(
-    buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_spread,
-    calendar, basis_dict, spot_bd, eval_date, expiry_date,
-    delivery_date, x, rd_simple, rf_simple, sigma_ATM, sigma_RR,
-    sigma_SQ, delta_tilde=delta_tilde, K_ATM_convention=K_ATM_convention,
-    delta_convention=delta_convention)
+# df, mid_params = calc_tx_with_spreads(
+#     buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_spread,
+#     calendar, basis_dict, spot_bd, eval_date, expiry_date,
+#     delivery_date, x, rd_simple, rf_simple, sigma_ATM, sigma_RR,
+#     sigma_SQ, delta_tilde=delta_tilde, K_ATM_convention=K_ATM_convention,
+#     delta_convention=delta_convention)
 
-print("forward parity:", mid_params.f)
-print("K_ATM:", mid_params.K_ATM)
+# print("forward parity:", mid_params.f)
+# print("K_ATM:", mid_params.K_ATM)

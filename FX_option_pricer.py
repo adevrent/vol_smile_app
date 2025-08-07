@@ -159,14 +159,14 @@ class OptionParams:
 
             def f(K):
                 print()
-                print("####### Inside calc_strike objective function #######")
+                # print("####### Inside calc_strike objective function #######")
                 d2 = self.calc_d2(K, sigma)
                 delta_S_pa = phi * np.exp(-self.rf * self.tau_360) * K/self.f * ss.norm.cdf(phi * d2)
-                print("delta_S_pa:", delta_S_pa)
-                print("calc strike objective: %", np.round(delta_S_pa - delta, 6))
-                print("K =", K)
-                print("#######################################################")
-                print()
+                # print("delta_S_pa:", delta_S_pa)
+                # print("calc strike objective: %", np.round(delta_S_pa - delta, 6))
+                # print("K =", K)
+                # print("#######################################################")
+                # print()
                 return delta_S_pa - delta
 
             # Adaptive bracket expansion

@@ -450,7 +450,7 @@ class OptionParams:
                 if np.sign(f_min) != np.sign(f_max):
                     res = root_scalar(f, method='brentq', bracket=[vol_min, vol_max], xtol=eps, maxiter=100)
                     sigma_K = res.root
-                    print(f"Found K={K:.6f} after {expansions} expansions")
+                    print(f"Found sigma_K={sigma_K:.6f} after {expansions} expansions")
                     return sigma_K
             except Exception as e:
                 print(f"Root finding failed: {e}")

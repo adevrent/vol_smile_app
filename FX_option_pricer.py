@@ -486,7 +486,7 @@ class OptionParams:
             maxiter=max_iter
         )
         sigma_K = res.root
-        
+        print("Secant method used, sigma_K: %", np.round(sigma_K*100, 4))
         return sigma_K
 
         # # Adaptive bracket expansion

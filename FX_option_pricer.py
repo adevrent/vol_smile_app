@@ -433,9 +433,15 @@ class OptionParams:
             return obj
 
         rr_coef = 1.5
+        
+        print("self.sigma_ATM:", self.sigma_ATM)
+        print("self.sigma_RR:", self.sigma_RR)
+        print("sigma_S:", sigma_S)
         vol_min = np.maximum(self.sigma_ATM - rr_coef * self.sigma_RR + sigma_S, 1e-6)  # Ensure vol_min is positive
         vol_max = self.sigma_ATM + rr_coef * self.sigma_RR + sigma_S
-
+        print("vol_min:", vol_min)
+        print("vol_max:", vol_max)
+        
         expansions = 0
         max_expansions = 10
 

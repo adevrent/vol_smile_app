@@ -15,6 +15,8 @@ def get_sign_flip_indexes(array):
     signs = np.sign(array)
     sign_flips = np.where(signs[:-1] * signs[1:] < 0)[0]
     sign_flip_indexes = [int(idx) for idx in sign_flips]
+    if len(sign_flip_indexes) == 0:
+        return None
     return sign_flip_indexes
 
 
@@ -451,23 +453,22 @@ class OptionParams:
         f_array = np.vectorize(f)(sigma_array)
         sign_flip_indexes = get_sign_flip_indexes(f_array)
 
+        if sign_flip_indexes is None:
+            # No sign flip
+            # ## DEBUG ##
+            # plt.plot(sigma_array, f_array, label='Objective Function')
+            # plt.title(f"Sigma_S = %{100*sigma_S:.4f}, K = {K:.4f}")
+            # plt.grid()
+            # plt.axhline(0, color='red', linestyle='--', label='Zero Line')
+            # plt.show()
+            # print()
+
+            return 0.001
+        
+        print("sign_flip_indexes:", sign_flip_indexes)
+
         vol_min = sigma_array[sign_flip_indexes[-1]]
         vol_max = sigma_array[sign_flip_indexes[-1]+1]
-
-        # ## DEBUG ##
-        # sigma_list = np.linspace(0.001, 0.5, 1000)
-        # plt.plot(sigma_list, f_array, label='Objective Function')
-        # plt.title(f"Sigma_S = %{100*sigma_S:.4f}, K = {K:.4f}")
-        # plt.grid()
-        # plt.axhline(0, color='red', linestyle='--', label='Zero Line')
-        # plt.show()
-        # print()
-
-        # if all have same sign, return np.nan
-        if np.all(np.sign(f_array) == np.sign(f_array[0])):
-            print("RETURNING NP.NAN")
-            return np.nan
-
 
 
         expansions = 0
@@ -701,42 +702,42 @@ def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_sp
     # print("v_for diff: %", np.round((v_for_ask - v_for_bid)*100, 4))
     return df, mid_params
 
-# DEBUG
-call_put = "PUT"
-buy_sell = "BUY"
+# # DEBUG
+# call_put = "PUT"
+# buy_sell = "BUY"
 
-# 7) Default values
-spot_bd = 1
-calendar = ql.Turkey()
+# # 7) Default values
+# spot_bd = 1
+# calendar = ql.Turkey()
 
-# 8) Compute
-eval_date     = ql.Date(8, 8, 2025)
-expiry_date   = ql.Date(13, 10, 2025)
-delivery_date = ql.Date(14, 10, 2025)
+# # 8) Compute
+# eval_date     = ql.Date(7, 8, 2025)
+# expiry_date   = ql.Date(13, 10, 2025)
+# delivery_date = ql.Date(14, 10, 2025)
 
-basis_dict = {"FOR":ql.Actual360(),
-              "DOM":ql.Actual360(),}
+# basis_dict = {"FOR":ql.Actual360(),
+#               "DOM":ql.Actual360(),}
 
-x = 40.6825
-rd_simple = 41.35 / 100
-rf_simple = 4.30 / 100
-sigma_ATM = 11.49 / 100
-sigma_RR  = 11.43 / 100
-sigma_SQ  = 2.36  / 100
-K = 37
-rd_spread = 0 / 100
-rf_spread = 0 / 100
-ATM_vol_spread = 3 / 100
-delta_tilde = 0.25
-K_ATM_convention = "fwd"  # "fwd", "fwd_delta_neutral"
-delta_convention = "spot"  # "spot", "spot_pa"
+# x = 40.6825
+# rd_simple = 41.35 / 100
+# rf_simple = 4.30 / 100
+# sigma_ATM = 11.49 / 100
+# sigma_RR  = 11.43 / 100
+# sigma_SQ  = 2.36  / 100
+# K = 37
+# rd_spread = 0 / 100
+# rf_spread = 0 / 100
+# ATM_vol_spread = 3 / 100
+# delta_tilde = 0.25
+# K_ATM_convention = "fwd_delta_neutral"  # "fwd", "fwd_delta_neutral"
+# delta_convention = "spot_pa"  # "spot", "spot_pa"
 
-df, mid_params = calc_tx_with_spreads(
-    buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_spread,
-    calendar, basis_dict, spot_bd, eval_date, expiry_date,
-    delivery_date, x, rd_simple, rf_simple, sigma_ATM, sigma_RR,
-    sigma_SQ, delta_tilde=delta_tilde, K_ATM_convention=K_ATM_convention,
-    delta_convention=delta_convention)
+# df, mid_params = calc_tx_with_spreads(
+#     buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_spread,
+#     calendar, basis_dict, spot_bd, eval_date, expiry_date,
+#     delivery_date, x, rd_simple, rf_simple, sigma_ATM, sigma_RR,
+#     sigma_SQ, delta_tilde=delta_tilde, K_ATM_convention=K_ATM_convention,
+#     delta_convention=delta_convention)
 
-print("forward parity:", mid_params.f)
-print("K_ATM:", mid_params.K_ATM)
+# print("forward parity:", mid_params.f)
+# print("K_ATM:", mid_params.K_ATM)

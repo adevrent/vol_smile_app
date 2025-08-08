@@ -302,7 +302,7 @@ class OptionParams:
         a, b = 1e-6, 2.0
 
         res = root_scalar(f, method="brentq", bracket=[a, b], xtol=eps, maxiter=max_iter)
-        return res.root
+        return np.maximum(res.root, 1e-12)
 
 
     def calc_c1(self, sigma_S, a=None):
@@ -455,17 +455,17 @@ class OptionParams:
 
         if sign_flip_indexes is None:
             # No sign flip
-            # ## DEBUG ##
-            # plt.plot(sigma_array, f_array, label='Objective Function')
-            # plt.title(f"Sigma_S = %{100*sigma_S:.4f}, K = {K:.4f}")
-            # plt.grid()
-            # plt.axhline(0, color='red', linestyle='--', label='Zero Line')
-            # plt.show()
-            # print()
+            ## DEBUG ##
+            plt.plot(sigma_array, f_array, label='Objective Function')
+            plt.title(f"Sigma_S = %{100*sigma_S:.4f}, K = {K:.4f}")
+            plt.grid()
+            plt.axhline(0, color='red', linestyle='--', label='Zero Line')
+            plt.show()
+            print()
 
-            return 0.001
-        
-        print("sign_flip_indexes:", sign_flip_indexes)
+            return 0.01
+
+        # print("sign_flip_indexes:", sign_flip_indexes)
 
         vol_min = sigma_array[sign_flip_indexes[-1]]
         vol_max = sigma_array[sign_flip_indexes[-1]+1]
@@ -485,7 +485,7 @@ class OptionParams:
 
 
             if np.sign(f_min) != np.sign(f_max):
-                print("  if block entered")
+                # print("  if block entered")
                 # find root
                 res = root_scalar(
                     f,
@@ -501,7 +501,7 @@ class OptionParams:
 
             else:
                 vol_min = np.maximum(vol_min * expansion_multi, 1e-6)  # Lower bound for vol_min
-                vol_max *= (1+expansion_multi)  # Expand upper bound for vol_max
+                vol_max *= (2-expansion_multi)  # Expand upper bound for vol_max
                 expansions += 1
 
         # If we reach here, we didn't find a root in the initial bracket
@@ -668,8 +668,8 @@ def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_sp
     sigma_K_mid = mid_params.find_SPI_sigma_K(call_put, K)
     print("sigma_K_mid =", sigma_K_mid)
 
-    v_for_mid = mid_params.BS(call_put, K, sigma_K_mid)["v_for"]
-    v_for_bid = np.maximum(v_for_mid - ATM_v_for_diff / 2, 1e-6)  # Ensure v_for_bid is not negative
+    v_for_mid = np.maximum(mid_params.BS(call_put, K, sigma_K_mid)["v_for"], 1e-12)
+    v_for_bid = np.maximum(v_for_mid - ATM_v_for_diff / 2, 1e-12)  # Ensure v_for_bid is not negative
     v_for_ask = v_for_mid + ATM_v_for_diff / 2
 
     v_dom_bid = v_for_bid * mid_params.x
@@ -677,6 +677,9 @@ def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_sp
 
     sigma_K_bid = mid_params.get_vol_from_price(v_dom_bid, K, call_put)
     sigma_K_ask = mid_params.get_vol_from_price(v_dom_ask, K, call_put)
+
+    if sigma_K_bid > sigma_K_mid:
+        sigma_K_bid = np.maximum(sigma_K_bid - (sigma_K_ask - sigma_K_mid), 1e-9)
 
     print("_" * 40)
     print()

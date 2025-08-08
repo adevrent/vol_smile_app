@@ -11,6 +11,12 @@ valid_K_ATM_conventions = ["fwd", "fwd_delta_neutral", "spot"]
 valid_delta_conventions = ["spot", "spot_pa", "fwd"]
 valid_conventions = ["Convention A", "Convention B"]
 
+def get_sign_flip_indexes(array):
+    signs = np.sign(array)
+    sign_flips = np.where(signs[:-1] * signs[1:] < 0)[0]
+    sign_flip_indexes = [int(idx) for idx in sign_flips]
+    return sign_flip_indexes
+
 
 class OptionParams:
     def __init__(self, calendar, basis_dict, spot_bd, eval_date, expiry_date, delivery_date, x, rd_simple, rf_simple, sigma_ATM, sigma_RR, sigma_SQ, delta_tilde=0.25, K_ATM_convention="fwd", delta_convention="fwd_pa"):
@@ -430,9 +436,6 @@ class OptionParams:
         else:
             raise NotImplementedError(f"Delta convention {self.delta_convention} not implemented.")
 
-        rr_coef = 0.3
-        vol_min = np.maximum(self.sigma_ATM - rr_coef * self.sigma_RR + sigma_S, 3e-2)  # Ensure vol_min is positive
-        vol_max = self.sigma_ATM + rr_coef * self.sigma_RR + sigma_S
 
         def f(sigma):
             if call_put.lower() == "put":
@@ -444,11 +447,12 @@ class OptionParams:
             # obj = self.sigma_ATM + c1 * (call_delta - self.delta_ATM) + c2 * (call_delta - self.delta_ATM)**2 - sigma
             return obj
 
-        # if optimizing_sigma_S:
-        f_array = np.vectorize(f)(np.linspace(0.001, 0.5, 1000))
-        # if all have same sign, return np.nan
-        if np.all(np.sign(f_array) == np.sign(f_array[0])):
-            return np.nan
+        sigma_array = np.linspace(0.001, 0.5, 1000)
+        f_array = np.vectorize(f)(sigma_array)
+        sign_flip_indexes = get_sign_flip_indexes(f_array)
+
+        vol_min = sigma_array[sign_flip_indexes[-1]]
+        vol_max = sigma_array[sign_flip_indexes[-1]+1]
 
         # ## DEBUG ##
         # sigma_list = np.linspace(0.001, 0.5, 1000)
@@ -457,6 +461,13 @@ class OptionParams:
         # plt.grid()
         # plt.axhline(0, color='red', linestyle='--', label='Zero Line')
         # plt.show()
+        # print()
+
+        # if all have same sign, return np.nan
+        if np.all(np.sign(f_array) == np.sign(f_array[0])):
+            print("RETURNING NP.NAN")
+            return np.nan
+
 
 
         expansions = 0
@@ -484,7 +495,7 @@ class OptionParams:
                     maxiter=max_iter
                 )
                 sigma_K = res.root
-                # print(f"BrentQ method used, sigma for K={K}: %", np.round(sigma_K*100, 4))
+                print(f"BrentQ method used, sigma for K={K}: %", np.round(sigma_K*100, 4))
                 return sigma_K
 
             else:
@@ -654,6 +665,7 @@ def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_sp
     ATM_v_for_diff = ask_ATM_v_for - bid_ATM_v_for
 
     sigma_K_mid = mid_params.find_SPI_sigma_K(call_put, K)
+    print("sigma_K_mid =", sigma_K_mid)
 
     v_for_mid = mid_params.BS(call_put, K, sigma_K_mid)["v_for"]
     v_for_bid = np.maximum(v_for_mid - ATM_v_for_diff / 2, 1e-6)  # Ensure v_for_bid is not negative
@@ -689,42 +701,42 @@ def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_sp
     # print("v_for diff: %", np.round((v_for_ask - v_for_bid)*100, 4))
     return df, mid_params
 
-# # DEBUG
-# call_put = "CALL"
-# buy_sell = "BUY"
+# DEBUG
+call_put = "PUT"
+buy_sell = "BUY"
 
-# # 7) Default values
-# spot_bd = 1
-# calendar = ql.Turkey()
+# 7) Default values
+spot_bd = 1
+calendar = ql.Turkey()
 
-# # 8) Compute
-# eval_date     = ql.Date(7, 8, 2025)
-# expiry_date   = ql.Date(8, 10, 2025)
-# delivery_date = ql.Date(9, 10, 2025)
+# 8) Compute
+eval_date     = ql.Date(8, 8, 2025)
+expiry_date   = ql.Date(13, 10, 2025)
+delivery_date = ql.Date(14, 10, 2025)
 
-# basis_dict = {"FOR":ql.Actual360(),
-#               "DOM":ql.Actual360(),}
+basis_dict = {"FOR":ql.Actual360(),
+              "DOM":ql.Actual360(),}
 
-# x = 40.65
-# rd_simple = 45.55 / 100
-# rf_simple = 4.30 / 100
-# sigma_ATM = 5 / 100
-# sigma_RR  = 15.32 / 100
-# sigma_SQ  = 4  / 100
-# K = 50
-# rd_spread = 1 / 100
-# rf_spread = 0 / 100
-# ATM_vol_spread = 3 / 100
-# delta_tilde = 0.25
-# K_ATM_convention = "fwd"  # "fwd", "fwd_delta_neutral"
-# delta_convention = "spot"  # "spot", "spot_pa"
+x = 40.6825
+rd_simple = 41.35 / 100
+rf_simple = 4.30 / 100
+sigma_ATM = 11.49 / 100
+sigma_RR  = 11.43 / 100
+sigma_SQ  = 2.36  / 100
+K = 37
+rd_spread = 0 / 100
+rf_spread = 0 / 100
+ATM_vol_spread = 3 / 100
+delta_tilde = 0.25
+K_ATM_convention = "fwd"  # "fwd", "fwd_delta_neutral"
+delta_convention = "spot"  # "spot", "spot_pa"
 
-# df, mid_params = calc_tx_with_spreads(
-#     buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_spread,
-#     calendar, basis_dict, spot_bd, eval_date, expiry_date,
-#     delivery_date, x, rd_simple, rf_simple, sigma_ATM, sigma_RR,
-#     sigma_SQ, delta_tilde=delta_tilde, K_ATM_convention=K_ATM_convention,
-#     delta_convention=delta_convention)
+df, mid_params = calc_tx_with_spreads(
+    buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_spread,
+    calendar, basis_dict, spot_bd, eval_date, expiry_date,
+    delivery_date, x, rd_simple, rf_simple, sigma_ATM, sigma_RR,
+    sigma_SQ, delta_tilde=delta_tilde, K_ATM_convention=K_ATM_convention,
+    delta_convention=delta_convention)
 
-# print("forward parity:", mid_params.f)
-# print("K_ATM:", mid_params.K_ATM)
+print("forward parity:", mid_params.f)
+print("K_ATM:", mid_params.K_ATM)

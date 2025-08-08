@@ -87,24 +87,24 @@ class OptionParams:
         elif K_ATM_convention.lower() == "spot":
             self.K_ATM = self.x
 
-        print("self.K_ATM:", np.round(self.K_ATM, 2))
+        # print("self.K_ATM:", np.round(self.K_ATM, 2))
 
         self.delta_ATM = self.BS("CALL", self.K_ATM, self.sigma_ATM)["delta_S"]  # spot delta of ATM call option, to be used in strangle calculation
 
         # SPI params
         self.delta_tilde = delta_tilde  # delta_tilde is the pillar smile delta, e.g. 0.25 or 0.10
-        print("...." * 50)
-        print("Calculating K_CSM")
+        # print("...." * 50)
+        # print("Calculating K_CSM")
         self.K_CSM = self.calc_strike("CALL", self.sigma_SM, self.delta_tilde)  # Call strike at delta pillar with MARKET STRANGLE VOL !
-        print("K_CSM:", np.round(self.K_CSM, 2))
-        print("K_CSM pa delta:", np.round(self.BS("CALL", self.K_CSM, self.sigma_SM)["delta_S_pa"] * 100, 4))
-        print()
-        print("Calculating K_PSM")
+        # print("K_CSM:", np.round(self.K_CSM, 2))
+        # print("K_CSM pa delta:", np.round(self.BS("CALL", self.K_CSM, self.sigma_SM)["delta_S_pa"] * 100, 4))
+        # print()
+        # print("Calculating K_PSM")
 
         self.K_PSM = self.calc_strike("PUT", self.sigma_SM, -self.delta_tilde)  # Put strike at delta pillar with MARKET STRANGLE VOL !
-        print("K_PSM:", np.round(self.K_PSM, 2))
-        print("K_PSM pa delta:", np.round(self.BS("PUT", self.K_PSM, self.sigma_SM)["delta_S_pa"] * 100, 4))
-        print("...." * 50)
+        # print("K_PSM:", np.round(self.K_PSM, 2))
+        # print("K_PSM pa delta:", np.round(self.BS("PUT", self.K_PSM, self.sigma_SM)["delta_S_pa"] * 100, 4))
+        # print("...." * 50)
 
         # ##### RESTRICTION 3
         self.v_SM = self.BS("CALL", self.K_CSM, self.sigma_SM)["v_dom"] + self.BS("PUT", self.K_PSM, self.sigma_SM)["v_dom"]  # Market Strangle value in domestic currency with MARKET STRANGLE VOL !
@@ -164,11 +164,11 @@ class OptionParams:
             K_max = K_npa
             K_min = self.solve_K_min(sigma, K_max, eps=eps, max_iter=1000)
 
-            print("K_min:", K_min)
-            print("K_max:", K_max)
+            # print("K_min:", K_min)
+            # print("K_max:", K_max)
 
             def f(K):
-                print()
+                # print()
                 # print("####### Inside calc_strike objective function #######")
                 d2 = self.calc_d2(K, sigma)
                 delta_S_pa = phi * np.exp(-self.rf * self.tau_360) * K/self.f * ss.norm.cdf(phi * d2)
@@ -454,14 +454,13 @@ class OptionParams:
         sign_flip_indexes = get_sign_flip_indexes(f_array)
 
         if sign_flip_indexes is None:
-            # No sign flip
-            ## DEBUG ##
-            plt.plot(sigma_array, f_array, label='Objective Function')
-            plt.title(f"Sigma_S = %{100*sigma_S:.4f}, K = {K:.4f}")
-            plt.grid()
-            plt.axhline(0, color='red', linestyle='--', label='Zero Line')
-            plt.show()
-            print()
+            # # No sign flip
+            # ## DEBUG ##
+            # plt.plot(sigma_array, f_array, label='Objective Function')
+            # plt.title(f"Sigma_S = %{100*sigma_S:.4f}, K = {K:.4f}")
+            # plt.grid()
+            # plt.axhline(0, color='red', linestyle='--', label='Zero Line')
+            # plt.show()
 
             return 0.01
 
@@ -705,42 +704,42 @@ def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_sp
     # print("v_for diff: %", np.round((v_for_ask - v_for_bid)*100, 4))
     return df, mid_params
 
-# DEBUG
-call_put = "PUT"
-buy_sell = "BUY"
+# # DEBUG
+# call_put = "CALL"
+# buy_sell = "BUY"
 
-# 7) Default values
-spot_bd = 1
-calendar = ql.Turkey()
+# # 7) Default values
+# spot_bd = 1
+# calendar = ql.Turkey()
 
-# 8) Compute
-eval_date     = ql.Date(8, 8, 2025)
-expiry_date   = ql.Date(13, 10, 2025)
-delivery_date = ql.Date(14, 10, 2025)
+# # 8) Compute
+# eval_date     = ql.Date(30, 7, 2025)
+# expiry_date   = ql.Date(29, 9, 2025)
+# delivery_date = ql.Date(30, 9, 2025)
 
-basis_dict = {"FOR":ql.Actual360(),
-              "DOM":ql.Actual360(),}
+# basis_dict = {"FOR":ql.Actual360(),
+#               "DOM":ql.Actual360(),}
 
-x = 40.6825
-rd_simple = 41.35 / 100
-rf_simple = 4.30 / 100
-sigma_ATM = 11.49 / 100
-sigma_RR  = 11.43 / 100
-sigma_SQ  = 2.36  / 100
-K = 37
-rd_spread = 0 / 100
-rf_spread = 0 / 100
-ATM_vol_spread = 3 / 100
-delta_tilde = 0.25
-K_ATM_convention = "fwd_delta_neutral"  # "fwd", "fwd_delta_neutral"
-delta_convention = "spot_pa"  # "spot", "spot_pa"
+# x = 40.581
+# rd_simple = 42.576 / 100
+# rf_simple = 4.333 / 100
+# sigma_ATM = 11.5 / 100
+# sigma_RR  = 11.75 / 100
+# sigma_SQ  = 1.75  / 100
+# K = 52
+# rd_spread = 0 / 100
+# rf_spread = 0 / 100
+# ATM_vol_spread = 2.25 / 100
+# delta_tilde = 0.25
+# K_ATM_convention = "fwd_delta_neutral"  # "fwd", "fwd_delta_neutral"
+# delta_convention = "spot_pa"  # "spot", "spot_pa"
 
-df, mid_params = calc_tx_with_spreads(
-    buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_spread,
-    calendar, basis_dict, spot_bd, eval_date, expiry_date,
-    delivery_date, x, rd_simple, rf_simple, sigma_ATM, sigma_RR,
-    sigma_SQ, delta_tilde=delta_tilde, K_ATM_convention=K_ATM_convention,
-    delta_convention=delta_convention)
+# df, mid_params = calc_tx_with_spreads(
+#     buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_spread,
+#     calendar, basis_dict, spot_bd, eval_date, expiry_date,
+#     delivery_date, x, rd_simple, rf_simple, sigma_ATM, sigma_RR,
+#     sigma_SQ, delta_tilde=delta_tilde, K_ATM_convention=K_ATM_convention,
+#     delta_convention=delta_convention)
 
-print("forward parity:", mid_params.f)
-print("K_ATM:", mid_params.K_ATM)
+# print("forward parity:", mid_params.f)
+# print("K_ATM:", mid_params.K_ATM)

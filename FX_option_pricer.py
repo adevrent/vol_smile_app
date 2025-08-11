@@ -718,25 +718,25 @@ def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_sp
 
 # # DEBUG
 # buy_sell = "BUY"
-# call_put = "PUT"
-# K = 41.0
+# # call_put = "PUT"
+# # K = 41.0
 
 # rd_spread = 0.0 / 100
 # rf_spread = 0.0 / 100
-# ATM_vol_spread = 2.25 / 100
+# ATM_vol_spread = 2.359 / 100
 
 # calendar = ql.Turkey()
 # basis_dict = {"FOR": ql.Actual360(), "DOM": ql.Actual365Fixed()}
 # spot_bd = 1
 # eval_date = ql.Date(30, 7, 2025)
-# expiry_date = ql.Date(29, 9, 2025)
-# delivery_date = ql.Date(30, 9, 2025)
+# expiry_date = ql.Date(15, 9, 2025)
+# delivery_date = ql.Date(16, 9, 2025)
 # x = 40.581
-# rd_simple = 42.576 / 100
-# rf_simple = 4.333 / 100
-# sigma_ATM = 11.5 / 100  # ATM volatility
-# sigma_RR = 11.75 / 100  # Risk Reversal volatility
-# sigma_SQ = 1.75 / 100  # Quoted Strangle volatility
+# rd_simple = 42.585 / 100
+# rf_simple = 4.341 / 100
+# sigma_ATM = 10.83 / 100  # ATM volatility
+# sigma_RR = 11.198 / 100  # Risk Reversal volatility
+# sigma_SQ = 1.641 / 100  # Quoted Strangle volatility
 # convention = "Convention A"
 
 # if convention == "Convention B":
@@ -766,27 +766,27 @@ def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_sp
 # strike_list_47D_PUT = [42.25, 42.0, 41.5, 41.0, 40.5]
 
 
-# def write_to_excel(strike_list):
+# def write_to_excel():
 #     import xlwings as xw
 #     book = xw.Book()
 #     sheet = book.sheets[0]
 #     current_row = 1
 #     for call_put in ["CALL", "PUT"]:
 #         if call_put == "CALL":
-#             strike_list = strike_list_2M_CALL
+#             strike_list = strike_list_47D_CALL
 #         else:
-#             strike_list = strike_list_2M_PUT
+#             strike_list = strike_list_47D_PUT
 
 #         for K in strike_list:
 #             # DataFrames
-#             df_conv_1 = calc_tx_with_spreads(
+#             df_conv_1, mid_params_conv_1 = calc_tx_with_spreads(
 #                 buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_spread,
 #                 calendar, basis_dict, spot_bd, eval_date, expiry_date,
 #                 delivery_date, x, rd_simple, rf_simple, sigma_ATM, sigma_RR,
 #                 sigma_SQ, delta_tilde=delta_tilde, K_ATM_convention="fwd_delta_neutral",
 #                 delta_convention="spot_pa"
 #             )
-#             df_conv_2 = calc_tx_with_spreads(
+#             df_conv_2, mid_params_conv_2 = calc_tx_with_spreads(
 #                 buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_spread,
 #                 calendar, basis_dict, spot_bd, eval_date, expiry_date,
 #                 delivery_date, x, rd_simple, rf_simple, sigma_ATM, sigma_RR,
@@ -851,5 +851,4 @@ def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_sp
 
 
 # # DEBUG 2
-# strike_list = strike_list_1M_CALL
-# write_to_excel(strike_list)
+# write_to_excel()

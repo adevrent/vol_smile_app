@@ -93,18 +93,18 @@ class OptionParams:
 
         # SPI params
         self.delta_tilde = delta_tilde  # delta_tilde is the pillar smile delta, e.g. 0.25 or 0.10
-        # print("...." * 50)
-        # print("Calculating K_CSM")
+        print("...." * 50)
+        print("Calculating K_CSM")
         self.K_CSM = self.calc_strike("CALL", self.sigma_SM, self.delta_tilde)  # Call strike at delta pillar with MARKET STRANGLE VOL !
-        # print("K_CSM:", np.round(self.K_CSM, 2))
-        # print("K_CSM pa delta:", np.round(self.BS("CALL", self.K_CSM, self.sigma_SM)["delta_S_pa"] * 100, 4))
-        # print()
-        # print("Calculating K_PSM")
+        print("K_CSM:", np.round(self.K_CSM, 2))
+        print("K_CSM pa delta:", np.round(self.BS("CALL", self.K_CSM, self.sigma_SM)["delta_S_pa"] * 100, 4))
+        print()
+        print("Calculating K_PSM")
 
         self.K_PSM = self.calc_strike("PUT", self.sigma_SM, -self.delta_tilde)  # Put strike at delta pillar with MARKET STRANGLE VOL !
-        # print("K_PSM:", np.round(self.K_PSM, 2))
-        # print("K_PSM pa delta:", np.round(self.BS("PUT", self.K_PSM, self.sigma_SM)["delta_S_pa"] * 100, 4))
-        # print("...." * 50)
+        print("K_PSM:", np.round(self.K_PSM, 2))
+        print("K_PSM pa delta:", np.round(self.BS("PUT", self.K_PSM, self.sigma_SM)["delta_S_pa"] * 100, 4))
+        print("...." * 50)
 
         # ##### RESTRICTION 3
         self.v_SM = self.BS("CALL", self.K_CSM, self.sigma_SM)["v_dom"] + self.BS("PUT", self.K_PSM, self.sigma_SM)["v_dom"]  # Market Strangle value in domestic currency with MARKET STRANGLE VOL !
@@ -178,6 +178,21 @@ class OptionParams:
                 # print("#######################################################")
                 # print()
                 return delta_S_pa - delta
+            
+            K_array = np.linspace(K_min * 0.8, K_max * 1.2, 1000)
+            f_array = np.vectorize(f)(K_array)
+            sign_flip_indexes = get_sign_flip_indexes(f_array)
+
+            if sign_flip_indexes is None:
+                # No sign flip
+                ## DEBUG ##
+                plt.plot(K_array, f_array, label='Objective Function')
+                plt.title(f"K = {K:.4f}")
+                plt.grid()
+                plt.axhline(0, color='red', linestyle='--', label='Zero Line')
+                plt.show()
+                print("No sign flip found, returning default K")
+                return K_npa
 
             # Adaptive bracket expansion
             max_expansions = 10
@@ -369,20 +384,13 @@ class OptionParams:
                 return (v_call + v_put) - self.v_SM
         elif self.delta_convention == "spot_pa":
             if self.a is None:
-                # print("||||| Initial K_P optimization: |||||")
-                K_P = self.calc_strike("PUT", self.sigma_SM, -self.delta_tilde)  # Initial value
-                self.a = np.exp(-self.rf * self.tau_360) * K_P/self.f
-                # print("        -- Initial K_P =", K_P)
+                self.a = np.exp(-self.rf * self.tau_360) * self.K_PSM/self.f
 
             def f(sigma_S):
-                sigma_P = np.maximum(self.sigma_ATM - 0.5*self.sigma_RR + sigma_S, 1e-3)  # Ensure sigma_P is positive
-                # print("        -- sigma_P = %", sigma_P*100)
-                K_P = self.calc_strike("PUT", sigma_P, -self.delta_tilde)  # Update K_P based on sigma_P
-                # print("        -- K_P =", K_P)
-                self.a = np.exp(-self.rf * self.tau_360) * K_P/self.f
+                a = np.exp(-self.rf * self.tau_360) * self.K_PSM/self.f
 
-                sigma_CSM = self.find_SPI_sigma_K("CALL", self.K_CSM, sigma_S, optimizing_sigma_S=True)
-                sigma_PSM = self.find_SPI_sigma_K("PUT", self.K_PSM, sigma_S, optimizing_sigma_S=True)
+                sigma_CSM = self.calc_sigma_from_delta(self.delta_tilde, sigma_S, a)
+                sigma_PSM = self.calc_sigma_from_delta(-self.delta_tilde + a, sigma_S, a)
 
                 if np.isnan(sigma_CSM) or np.isnan(sigma_PSM):
                     # print("sigma_CSM or sigma_PSM is NaN, returning NaN")
@@ -413,7 +421,7 @@ class OptionParams:
 
         return sigma_S_opt
 
-    def find_SPI_sigma_K(self, call_put, K, sigma_S=None, eps=1e-6, max_iter=10000, optimizing_sigma_S=False):
+    def find_SPI_sigma_K(self, call_put, K, sigma_S=None, a=None, eps=1e-6, max_iter=10000, optimizing_sigma_S=False):
         """
         Find the implied volatility for a given strike K using the SPI model.
 
@@ -434,10 +442,14 @@ class OptionParams:
             a = self.a
         elif self.delta_convention.lower() == "spot_pa":
             delta_type = "delta_S_pa"
-            a = np.exp(-self.rf * self.tau_360) * K/self.f
+            self.set_K_C_P()  # Ensure K_C and K_P are set before using a
+            if a is None:
+                a = np.exp(-self.rf * self.tau_360) * self.K_P/self.f
         else:
             raise NotImplementedError(f"Delta convention {self.delta_convention} not implemented.")
 
+        if a is None:
+            raise ValueError("a is None, please set it before calling find_SPI_sigma_K.")
 
         def f(sigma):
             if call_put.lower() == "put":
@@ -453,6 +465,7 @@ class OptionParams:
         f_array = np.vectorize(f)(sigma_array)
         sign_flip_indexes = get_sign_flip_indexes(f_array)
 
+
         if sign_flip_indexes is None:
             # # No sign flip
             # ## DEBUG ##
@@ -461,7 +474,6 @@ class OptionParams:
             # plt.grid()
             # plt.axhline(0, color='red', linestyle='--', label='Zero Line')
             # plt.show()
-
             return 0.01
 
         # print("sign_flip_indexes:", sign_flip_indexes)
@@ -705,7 +717,7 @@ def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_sp
     return df, mid_params
 
 # # DEBUG
-# call_put = "CALL"
+# call_put = "PUT"
 # buy_sell = "BUY"
 
 # # 7) Default values
@@ -713,26 +725,26 @@ def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_sp
 # calendar = ql.Turkey()
 
 # # 8) Compute
-# eval_date     = ql.Date(30, 7, 2025)
-# expiry_date   = ql.Date(29, 9, 2025)
-# delivery_date = ql.Date(30, 9, 2025)
+# eval_date     = ql.Date(8, 8, 2025)
+# expiry_date   = ql.Date(13, 10, 2025)
+# delivery_date = ql.Date(14, 10, 2025)
 
 # basis_dict = {"FOR":ql.Actual360(),
 #               "DOM":ql.Actual360(),}
 
-# x = 40.581
-# rd_simple = 42.576 / 100
-# rf_simple = 4.333 / 100
-# sigma_ATM = 11.5 / 100
-# sigma_RR  = 11.75 / 100
-# sigma_SQ  = 1.75  / 100
-# K = 52
+# x = 40.6825
+# rd_simple = 41.35 / 100
+# rf_simple = 4.30 / 100
+# sigma_ATM = 11.49 / 100
+# sigma_RR  = 11.43 / 100
+# sigma_SQ  = 2.36 / 100
+# K = 37
 # rd_spread = 0 / 100
 # rf_spread = 0 / 100
-# ATM_vol_spread = 2.25 / 100
+# ATM_vol_spread = 3 / 100
 # delta_tilde = 0.25
-# K_ATM_convention = "fwd_delta_neutral"  # "fwd", "fwd_delta_neutral"
-# delta_convention = "spot_pa"  # "spot", "spot_pa"
+# K_ATM_convention = "fwd"  # "fwd", "fwd_delta_neutral"
+# delta_convention = "spot"  # "spot", "spot_pa"
 
 # df, mid_params = calc_tx_with_spreads(
 #     buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_spread,
@@ -740,6 +752,9 @@ def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_sp
 #     delivery_date, x, rd_simple, rf_simple, sigma_ATM, sigma_RR,
 #     sigma_SQ, delta_tilde=delta_tilde, K_ATM_convention=K_ATM_convention,
 #     delta_convention=delta_convention)
-
+# sigma = mid_params.find_SPI_sigma_K(call_put, K)
+# print("delta_S_pa:", mid_params.BS(call_put, K, sigma)["delta_S_pa"])
+# print("sigma for K =", K, ":", np.round(sigma * 100, 4), "%")
 # print("forward parity:", mid_params.f)
 # print("K_ATM:", mid_params.K_ATM)
+# # mid_params.plot_smile_K()

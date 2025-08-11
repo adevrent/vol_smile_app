@@ -389,8 +389,8 @@ class OptionParams:
             def f(sigma_S):
                 a = np.exp(-self.rf * self.tau_360) * self.K_PSM/self.f
 
-                sigma_CSM = self.calc_sigma_from_delta(self.delta_tilde, sigma_S, a)
-                sigma_PSM = self.calc_sigma_from_delta(-self.delta_tilde + a, sigma_S, a)
+                sigma_CSM = self.find_SPI_sigma_K("CALL", self.K_CSM, sigma_S, a, optimizing_sigma_S=True)
+                sigma_PSM = self.find_SPI_sigma_K("PUT", self.K_PSM, sigma_S, a, optimizing_sigma_S=True)
 
                 if np.isnan(sigma_CSM) or np.isnan(sigma_PSM):
                     # print("sigma_CSM or sigma_PSM is NaN, returning NaN")
@@ -743,8 +743,8 @@ def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_sp
 # rf_spread = 0 / 100
 # ATM_vol_spread = 3 / 100
 # delta_tilde = 0.25
-# K_ATM_convention = "fwd"  # "fwd", "fwd_delta_neutral"
-# delta_convention = "spot"  # "spot", "spot_pa"
+# K_ATM_convention = "fwd_delta_neutral"  # "fwd", "fwd_delta_neutral"
+# delta_convention = "spot_pa"  # "spot", "spot_pa"
 
 # df, mid_params = calc_tx_with_spreads(
 #     buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_spread,
@@ -757,4 +757,4 @@ def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_sp
 # print("sigma for K =", K, ":", np.round(sigma * 100, 4), "%")
 # print("forward parity:", mid_params.f)
 # print("K_ATM:", mid_params.K_ATM)
-# # mid_params.plot_smile_K()
+# mid_params.plot_smile_K()

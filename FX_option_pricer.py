@@ -442,8 +442,8 @@ class OptionParams:
             a = self.a
         elif self.delta_convention.lower() == "spot_pa":
             delta_type = "delta_S_pa"
-            self.set_K_C_P()  # Ensure K_C and K_P are set before using a
-            if a is None:
+            if optimizing_sigma_S:
+                self.set_K_C_P()  # Ensure K_C and K_P are set before using a
                 a = np.exp(-self.rf * self.tau_360) * self.K_P/self.f
         else:
             raise NotImplementedError(f"Delta convention {self.delta_convention} not implemented.")

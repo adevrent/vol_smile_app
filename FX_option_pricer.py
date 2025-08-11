@@ -461,59 +461,60 @@ class OptionParams:
             # obj = self.sigma_ATM + c1 * (call_delta - self.delta_ATM) + c2 * (call_delta - self.delta_ATM)**2 - sigma
             return obj
 
-        sigma_array = np.linspace(0.001, 0.5, 1000)
-        f_array = np.vectorize(f)(sigma_array)
-        sign_flip_indexes = get_sign_flip_indexes(f_array)
+        vol_min = 1e-12
+        vol_max = 0.7
+        f_min = f(vol_min)
+        f_max = f(vol_max)
+
+        print(f"Bracket: [{vol_min:.6f}, {vol_max:.6f}]")
+        print(f"f(min)={f_min:.6f}, f(max)={f_max:.6f}")
 
 
-        if sign_flip_indexes is None:
-            # # No sign flip
-            # ## DEBUG ##
-            # plt.plot(sigma_array, f_array, label='Objective Function')
-            # plt.title(f"Sigma_S = %{100*sigma_S:.4f}, K = {K:.4f}")
-            # plt.grid()
-            # plt.axhline(0, color='red', linestyle='--', label='Zero Line')
-            # plt.show()
-            return 0.01
+        if np.sign(f_min) != np.sign(f_max):
+            # print("  if block entered")
+            # find root
+            res = root_scalar(
+                f,
+                method='brentq',  # or 'brentq' if you prefer
+                bracket=[vol_min, vol_max],  # reasonable bounds for the volatility
+                x0=self.sigma_ATM,  # initial guess
+                xtol=eps,
+                maxiter=max_iter
+            )
+            sigma_K = res.root
+            print(f"BrentQ method used, sigma for K={K}: %", np.round(sigma_K*100, 4))
+            return sigma_K
 
-        # print("sign_flip_indexes:", sign_flip_indexes)
+        else:
+            sigma_array = np.linspace(0.001, 0.5, 1000)
+            f_array = np.vectorize(f)(sigma_array)
+            sign_flip_indexes = get_sign_flip_indexes(f_array)
 
-        vol_min = sigma_array[sign_flip_indexes[-1]]
-        vol_max = sigma_array[sign_flip_indexes[-1]+1]
+            if sign_flip_indexes is None:
+                # # No sign flip
+                # ## DEBUG ##
+                # plt.plot(sigma_array, f_array, label='Objective Function')
+                # plt.title(f"Sigma_S = %{100*sigma_S:.4f}, K = {K:.4f}")
+                # plt.grid()
+                # plt.axhline(0, color='red', linestyle='--', label='Zero Line')
+                # plt.show()
+                return 0.01
 
+            # print("sign_flip_indexes:", sign_flip_indexes)
 
-        expansions = 0
-        max_expansions = 10
-        expansion_multi = 0.8
-
-        while expansions < max_expansions:
-            print(f"Expansion #{expansions + 1}")
-            f_min = f(vol_min)
-            f_max = f(vol_max)
-
-            print(f"Bracket: [{vol_min:.6f}, {vol_max:.6f}]")
-            print(f"f(min)={f_min:.6f}, f(max)={f_max:.6f}")
-
-
-            if np.sign(f_min) != np.sign(f_max):
-                # print("  if block entered")
-                # find root
-                res = root_scalar(
-                    f,
-                    method='brentq',  # or 'brentq' if you prefer
-                    bracket=[vol_min, vol_max],  # reasonable bounds for the volatility
-                    x0=self.sigma_ATM,  # initial guess
-                    xtol=eps,
-                    maxiter=max_iter
-                )
-                sigma_K = res.root
-                print(f"BrentQ method used, sigma for K={K}: %", np.round(sigma_K*100, 4))
-                return sigma_K
-
-            else:
-                vol_min = np.maximum(vol_min * expansion_multi, 1e-6)  # Lower bound for vol_min
-                vol_max *= (2-expansion_multi)  # Expand upper bound for vol_max
-                expansions += 1
+            vol_min = sigma_array[sign_flip_indexes[-1]]
+            vol_max = sigma_array[sign_flip_indexes[-1]+1]
+            res = root_scalar(
+                f,
+                method='brentq',  # or 'brentq' if you prefer
+                bracket=[vol_min, vol_max],  # reasonable bounds for the volatility
+                x0=self.sigma_ATM,  # initial guess
+                xtol=eps,
+                maxiter=max_iter
+            )
+            sigma_K = res.root
+            print(f"BrentQ method used, sigma for K={K}: %", np.round(sigma_K*100, 4))
+            return sigma_K
 
         # If we reach here, we didn't find a root in the initial bracket
         # print(f"Failed to find brentq root sigma_K after {expansions} expansions.")

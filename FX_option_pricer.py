@@ -444,12 +444,12 @@ class OptionParams:
             delta_type = "delta_S_pa"
             if optimizing_sigma_S:
                 self.set_K_C_P()  # Ensure K_C and K_P are set before using a
-                a = np.exp(-self.rf * self.tau_360) * self.K_P/self.f
         else:
             raise NotImplementedError(f"Delta convention {self.delta_convention} not implemented.")
 
         if a is None:
-            raise ValueError("a is None, please set it before calling find_SPI_sigma_K.")
+            self.a = np.exp(-self.rf * self.tau_360) * self.K_P/self.f
+            a = self.a
 
         def f(sigma):
             if call_put.lower() == "put":
@@ -717,44 +717,139 @@ def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_sp
     return df, mid_params
 
 # # DEBUG
-# call_put = "PUT"
 # buy_sell = "BUY"
+# call_put = "PUT"
+# K = 41.0
 
-# # 7) Default values
-# spot_bd = 1
+# rd_spread = 0.0 / 100
+# rf_spread = 0.0 / 100
+# ATM_vol_spread = 2.25 / 100
+
 # calendar = ql.Turkey()
+# basis_dict = {"FOR": ql.Actual360(), "DOM": ql.Actual365Fixed()}
+# spot_bd = 1
+# eval_date = ql.Date(30, 7, 2025)
+# expiry_date = ql.Date(29, 9, 2025)
+# delivery_date = ql.Date(30, 9, 2025)
+# x = 40.581
+# rd_simple = 42.576 / 100
+# rf_simple = 4.333 / 100
+# sigma_ATM = 11.5 / 100  # ATM volatility
+# sigma_RR = 11.75 / 100  # Risk Reversal volatility
+# sigma_SQ = 1.75 / 100  # Quoted Strangle volatility
+# convention = "Convention A"
 
-# # 8) Compute
-# eval_date     = ql.Date(8, 8, 2025)
-# expiry_date   = ql.Date(13, 10, 2025)
-# delivery_date = ql.Date(14, 10, 2025)
+# if convention == "Convention B":
+#     K_ATM_convention = "fwd"
+#     delta_convention = "spot"
+# elif convention == "Convention A":
+#     K_ATM_convention = "fwd_delta_neutral"
+#     delta_convention = "spot_pa"
 
-# basis_dict = {"FOR":ql.Actual360(),
-#               "DOM":ql.Actual360(),}
+# delta_tilde = 0.25  # pillar smile delta, e.g. 0.25 or 0.10
 
-# x = 40.6825
-# rd_simple = 41.35 / 100
-# rf_simple = 4.30 / 100
-# sigma_ATM = 11.49 / 100
-# sigma_RR  = 11.43 / 100
-# sigma_SQ  = 2.36 / 100
-# K = 37
-# rd_spread = 0 / 100
-# rf_spread = 0 / 100
-# ATM_vol_spread = 3 / 100
-# delta_tilde = 0.25
-# K_ATM_convention = "fwd_delta_neutral"  # "fwd", "fwd_delta_neutral"
-# delta_convention = "spot_pa"  # "spot", "spot_pa"
+# # calc_tx_with_spreads(
+# #     buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_spread,
+# #     calendar, basis_dict, spot_bd, eval_date, expiry_date,
+# #     delivery_date, x, rd_simple, rf_simple, sigma_ATM, sigma_RR,
+# #     sigma_SQ, delta_tilde=delta_tilde, K_ATM_convention=K_ATM_convention,
+# #     delta_convention=delta_convention)
 
-# df, mid_params = calc_tx_with_spreads(
-#     buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_spread,
-#     calendar, basis_dict, spot_bd, eval_date, expiry_date,
-#     delivery_date, x, rd_simple, rf_simple, sigma_ATM, sigma_RR,
-#     sigma_SQ, delta_tilde=delta_tilde, K_ATM_convention=K_ATM_convention,
-#     delta_convention=delta_convention)
-# sigma = mid_params.find_SPI_sigma_K(call_put, K)
-# print("delta_S_pa:", mid_params.BS(call_put, K, sigma)["delta_S_pa"])
-# print("sigma for K =", K, ":", np.round(sigma * 100, 4), "%")
-# print("forward parity:", mid_params.f)
-# print("K_ATM:", mid_params.K_ATM)
-# mid_params.plot_smile_K()
+
+
+# # run the calculation
+# strike_list_1M_CALL = [42.0, 42.5, 43.5, 44.5, 46.0]
+# strike_list_1M_PUT = [41.75, 41.5, 41.25, 41.0, 40.5]
+# strike_list_2M_CALL = [43.5, 44.0, 46.5, 48.0, 52.0]
+# strike_list_2M_PUT = [43.0, 42.5, 42.0, 41.5, 41.0]
+# strike_list_47D_CALL = [43.0, 43.5, 46.0, 47.5, 51.0]
+# strike_list_47D_PUT = [42.25, 42.0, 41.5, 41.0, 40.5]
+
+
+# def write_to_excel(strike_list):
+#     import xlwings as xw
+#     book = xw.Book()
+#     sheet = book.sheets[0]
+#     current_row = 1
+#     for call_put in ["CALL", "PUT"]:
+#         if call_put == "CALL":
+#             strike_list = strike_list_2M_CALL
+#         else:
+#             strike_list = strike_list_2M_PUT
+
+#         for K in strike_list:
+#             # DataFrames
+#             df_conv_1 = calc_tx_with_spreads(
+#                 buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_spread,
+#                 calendar, basis_dict, spot_bd, eval_date, expiry_date,
+#                 delivery_date, x, rd_simple, rf_simple, sigma_ATM, sigma_RR,
+#                 sigma_SQ, delta_tilde=delta_tilde, K_ATM_convention="fwd_delta_neutral",
+#                 delta_convention="spot_pa"
+#             )
+#             df_conv_2 = calc_tx_with_spreads(
+#                 buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_spread,
+#                 calendar, basis_dict, spot_bd, eval_date, expiry_date,
+#                 delivery_date, x, rd_simple, rf_simple, sigma_ATM, sigma_RR,
+#                 sigma_SQ, delta_tilde=delta_tilde, K_ATM_convention="fwd",
+#                 delta_convention="spot"
+#             )
+
+#             start_group_row = current_row  # Track top of group
+
+#             # ----- Main Title -----
+#             title_cell = sheet.range((current_row, 1))
+#             title_cell.value = f"Results for {buy_sell} {call_put} @ {K}"
+#             sheet.range((current_row, 1), (current_row, 9)).merge()
+#             title_cell.api.HorizontalAlignment = -4108  # Center
+#             title_cell.api.Font.Bold = True
+#             current_row += 1
+
+#             # ----- Convention Headers -----
+#             convA_cell = sheet.range((current_row, 1))
+#             convA_cell.value = "Convention A"
+#             sheet.range((current_row, 1), (current_row, 4)).merge()
+#             convA_cell.api.HorizontalAlignment = -4108
+#             convA_cell.api.Font.Bold = True
+
+#             convB_cell = sheet.range((current_row, 6))
+#             convB_cell.value = "Convention B"
+#             sheet.range((current_row, 6), (current_row, 9)).merge()
+#             convB_cell.api.HorizontalAlignment = -4108
+#             convB_cell.api.Font.Bold = True
+#             current_row += 1
+
+#             # ----- Tables -----
+#             # Convention A
+#             tableA = sheet.range((current_row, 1))
+#             tableA.value = df_conv_1
+#             # Bold headers (row and column names)
+#             sheet.range((current_row, 1), (current_row + df_conv_1.shape[0], 4)).api.Font.Bold = True
+
+#             # Convention B
+#             tableB = sheet.range((current_row, 6))
+#             tableB.value = df_conv_2
+#             sheet.range((current_row, 6), (current_row + df_conv_2.shape[0], 9)).api.Font.Bold = True
+
+#             # Mark bottom of group (last data row)
+#             end_group_row = current_row + max(df_conv_1.shape[0], df_conv_2.shape[0])
+
+#             # Move down for next group
+#             current_row = end_group_row + 3
+
+#             # ----- Apply Perimeter Borders (No Inner Borders) -----
+#             border_range = sheet.range((start_group_row, 1), (end_group_row, 9))
+
+#             # Left, top, right, bottom borders only
+#             for border_id in [7, 8, 9, 10]:  # xlEdgeLeft=7, xlEdgeTop=8, xlEdgeBottom=9, xlEdgeRight=10
+#                 border = border_range.api.Borders(border_id)
+#                 border.LineStyle = 1       # Continuous line
+#                 border.Weight = 4          # xlThick = 4
+
+#             # Remove any inside borders (optional safety)
+#             for border_id in [11, 12]:  # xlInsideVertical=11, xlInsideHorizontal=12
+#                 border_range.api.Borders(border_id).LineStyle = 0  # xlLineStyleNone
+
+
+# # DEBUG 2
+# strike_list = strike_list_1M_CALL
+# write_to_excel(strike_list)

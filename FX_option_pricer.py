@@ -178,21 +178,21 @@ class OptionParams:
                 # print("#######################################################")
                 # print()
                 return delta_S_pa - delta
-            
+
             K_array = np.linspace(K_min * 0.8, K_max * 1.2, 1000)
             f_array = np.vectorize(f)(K_array)
             sign_flip_indexes = get_sign_flip_indexes(f_array)
 
             if sign_flip_indexes is None:
                 # No sign flip
-                ## DEBUG ##
-                plt.plot(K_array, f_array, label='Objective Function')
-                plt.grid()
-                plt.xlabel("Strike K")
-                plt.ylabel("f(K)")
-                plt.axhline(0, color='red', linestyle='--', label='Zero Line')
-                plt.show()
-                print("No sign flip found, returning default K")
+                # ## DEBUG ##
+                # plt.plot(K_array, f_array, label='Objective Function')
+                # plt.grid()
+                # plt.xlabel("Strike K")
+                # plt.ylabel("f(K)")
+                # plt.axhline(0, color='red', linestyle='--', label='Zero Line')
+                # plt.show()
+                # print("No sign flip found, returning default K")
                 return K_npa
 
             # Adaptive bracket expansion
@@ -361,7 +361,7 @@ class OptionParams:
         sigma = self.sigma_ATM + c1*(delta_call - self.delta_ATM) + c2*(delta_call - self.delta_ATM)**2
         return sigma
 
-    def optimize_sigma_S(self, eps=1e-6, max_iter=10000):
+    def optimize_sigma_S(self, eps=1e-9, max_iter=10000):
         """
         Calibrate sigma_S (smile-strangle vol) so that the
         SPI strangle price matches the market strangle value.
@@ -408,13 +408,13 @@ class OptionParams:
         # print("f_array:", np.round(f_array, 6))
         sign_flip_indexes = get_sign_flip_indexes(f_array)
         print("sign_flip_indexes:", sign_flip_indexes)
-        ## DEBUG ##
-        plt.plot(sigma_S_array, f_array, label='sigma_S Objective Function')
-        plt.grid()
-        plt.xlabel('sigma_S')
-        plt.ylabel('Objective Function Value')
-        plt.axhline(0, color='red', linestyle='--', label='Zero Line')
-        plt.show()
+        # ## DEBUG ##
+        # plt.plot(sigma_S_array, f_array, label='sigma_S Objective Function')
+        # plt.grid()
+        # plt.xlabel('sigma_S')
+        # plt.ylabel('Objective Function Value')
+        # plt.axhline(0, color='red', linestyle='--', label='Zero Line')
+        # plt.show()
 
         if sign_flip_indexes is None:
             # No sign flip, return the initial guess
@@ -758,44 +758,44 @@ def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_sp
     # print("v_for diff: %", np.round((v_for_ask - v_for_bid)*100, 4))
     return df, mid_params
 
-# DEBUG
-buy_sell = "BUY"
-call_put = "CALL"
-K = 45.0
+# # DEBUG
+# buy_sell = "BUY"
+# call_put = "CALL"
+# K = 45.0
 
-rd_spread = 0.0 / 100
-rf_spread = 0.0 / 100
-ATM_vol_spread = 3 / 100
+# rd_spread = 0.0 / 100
+# rf_spread = 0.0 / 100
+# ATM_vol_spread = 3 / 100
 
-calendar = ql.Turkey()
-basis_dict = {"FOR": ql.Actual360(), "DOM": ql.Actual365Fixed()}
-spot_bd = 1
-eval_date = ql.Date(21, 8, 2025)
-expiry_date = ql.Date(3, 10, 2025)
-delivery_date = ql.Date(4, 10, 2025)
-x = 40.94
-rd_simple = 41.16 / 100
-rf_simple = 4.35 / 100
-sigma_ATM = 9.96 / 100  # ATM volatility
-sigma_RR = 21 / 100  # Risk Reversal volatility
-sigma_SQ = 2.26 / 100  # Quoted Strangle volatility
-convention = "Convention B"
+# calendar = ql.Turkey()
+# basis_dict = {"FOR": ql.Actual360(), "DOM": ql.Actual365Fixed()}
+# spot_bd = 1
+# eval_date = ql.Date(21, 8, 2025)
+# expiry_date = ql.Date(3, 10, 2025)
+# delivery_date = ql.Date(4, 10, 2025)
+# x = 40.94
+# rd_simple = 41.16 / 100
+# rf_simple = 4.35 / 100
+# sigma_ATM = 9.96 / 100  # ATM volatility
+# sigma_RR = 21 / 100  # Risk Reversal volatility
+# sigma_SQ = 2.26 / 100  # Quoted Strangle volatility
+# convention = "Convention A"
 
-if convention == "Convention B":
-    K_ATM_convention = "fwd"
-    delta_convention = "spot"
-elif convention == "Convention B":
-    K_ATM_convention = "fwd_delta_neutral"
-    delta_convention = "spot_pa"
+# if convention == "Convention B":
+#     K_ATM_convention = "fwd"
+#     delta_convention = "spot"
+# elif convention == "Convention A":
+#     K_ATM_convention = "fwd_delta_neutral"
+#     delta_convention = "spot_pa"
 
-delta_tilde = 0.25  # pillar smile delta, e.g. 0.25 or 0.10
+# delta_tilde = 0.25  # pillar smile delta, e.g. 0.25 or 0.10
 
-df, mid_params = calc_tx_with_spreads(
-    buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_spread,
-    calendar, basis_dict, spot_bd, eval_date, expiry_date,
-    delivery_date, x, rd_simple, rf_simple, sigma_ATM, sigma_RR,
-    sigma_SQ, delta_tilde=delta_tilde, K_ATM_convention=K_ATM_convention,
-    delta_convention=delta_convention)
+# df, mid_params = calc_tx_with_spreads(
+#     buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_spread,
+#     calendar, basis_dict, spot_bd, eval_date, expiry_date,
+#     delivery_date, x, rd_simple, rf_simple, sigma_ATM, sigma_RR,
+#     sigma_SQ, delta_tilde=delta_tilde, K_ATM_convention=K_ATM_convention,
+#     delta_convention=delta_convention)
 
 # mid_params.plot_smile_K()  # Plot the implied volatility smile for the SPI model
 

@@ -381,36 +381,56 @@ class OptionParams:
 
                 v_call = self.BS("CALL", self.K_CSM, sigma_CSM)["v_dom"]
                 v_put = self.BS("PUT",  self.K_PSM, sigma_PSM)["v_dom"]
-                print("    sigma_S: %", np.round(sigma_S*100, 2))
-                print("    sigma_S optimization objective: %", np.round(((v_call + v_put) - self.v_SM)*100, 2))
+                # print("    sigma_S optimization objective: %", np.round((v_call + v_put) - self.v_SM, 6)*100)
                 return (v_call + v_put) - self.v_SM
         elif self.delta_convention == "spot_pa":
-            if self.a is None:
-                self.a = np.exp(-self.rf * self.tau_360) * self.K_PSM/self.f
+            print("Inside optimize_sigma_S with spot_pa delta convention")
 
             def f(sigma_S):
-                self.set_K_C_P(sigma_S)
+                self.set_K_C_P(sigma_S)  # Ensure K_C and K_P are set before using a
                 a = np.exp(-self.rf * self.tau_360) * self.K_P/self.f
-
                 sigma_CSM = self.find_SPI_sigma_K("CALL", self.K_CSM, sigma_S, a, optimizing_sigma_S=True)
                 sigma_PSM = self.find_SPI_sigma_K("PUT", self.K_PSM, sigma_S, a, optimizing_sigma_S=True)
 
                 if np.isnan(sigma_CSM) or np.isnan(sigma_PSM):
-                    # print("sigma_CSM or sigma_PSM is NaN, returning NaN")
+                    print("sigma_CSM or sigma_PSM is NaN, returning NaN")
                     return np.inf
 
                 v_call = self.BS("CALL", self.K_CSM, sigma_CSM)["v_dom"]
                 v_put = self.BS("PUT",  self.K_PSM, sigma_PSM)["v_dom"]
-                print("    sigma_S: %", np.round(sigma_S*100, 2))
-                print("    sigma_S optimization objective: %", np.round(((v_call + v_put) - self.v_SM)*100, 2))
+                print("    sigma_S: %", np.round(sigma_S*100, 4))
+                print("    sigma_S optimization objective: %", np.round((v_call + v_put) - self.v_SM, 4)*100)
                 return (v_call + v_put) - self.v_SM
+        print("Initial sigma_S guess: %", np.round(self.sigma_SQ * 100, 4))
+        sigma_S_array = np.linspace(-self.sigma_ATM, self.sigma_SQ + 0.1, 10)
+        # print("sigma_S_array:", np.round(sigma_S_array, 6))
+        f_array = np.vectorize(f)(sigma_S_array)
+        # print("f_array:", np.round(f_array, 6))
+        sign_flip_indexes = get_sign_flip_indexes(f_array)
+        print("sign_flip_indexes:", sign_flip_indexes)
+        ## DEBUG ##
+        plt.plot(sigma_S_array, f_array, label='sigma_S Objective Function')
+        plt.grid()
+        plt.xlabel('sigma_S')
+        plt.ylabel('Objective Function Value')
+        plt.axhline(0, color='red', linestyle='--', label='Zero Line')
+        plt.show()
 
-        sigma_S_min = self.sigma_SQ - 0.1
-        sigma_S_max = self.sigma_SQ + 0.1
+        if sign_flip_indexes is None:
+            # No sign flip, return the initial guess
+            print("No sign flip found, returning initial sigma_S")
+            return self.sigma_SQ
+
+        sigma_S_min = sigma_S_array[sign_flip_indexes[-1]]
+        sigma_S_max = sigma_S_array[sign_flip_indexes[-1]+1]
+        # sigma_S_min = -(self.sigma_ATM - 0.5 * self.sigma_RR)
+        # sigma_S_max = self.sigma_SQ + 0.3
+        print("sigma_S_min:", np.round(sigma_S_min, 6))
+        print("sigma_S_max:", np.round(sigma_S_max, 6))
         # find root
         res = root_scalar(
             f,
-            method='secant',  #TODO
+            method='brentq',  #TODO
             bracket=[sigma_S_min, sigma_S_max],
             xtol=eps,
             x0=self.sigma_SQ,  # initial guess
@@ -419,9 +439,14 @@ class OptionParams:
         sigma_S_opt = res.root
         print(f"sigma_S_opt: %{sigma_S_opt*100:.2f}")
         self.sigma_S = sigma_S_opt  # update the instance variable
-        print("sigma_CSM %", np.round(self.find_SPI_sigma_K("CALL", self.K_CSM, sigma_S_opt)*100, 2))
-        print("sigma_PSM %", np.round(self.find_SPI_sigma_K("PUT", self.K_PSM, sigma_S_opt)*100, 2))
-        print("v_SM calc: %", np.round(self.BS("CALL", self.K_CSM, self.find_SPI_sigma_K("CALL", self.K_CSM))["v_dom"] + self.BS("PUT", self.K_PSM, self.find_SPI_sigma_K("PUT", self.K_PSM))["v_dom"], 4)*100)
+        # self.set_K_C_P(self.sigma_S)  # Ensure K_C and K_P are set before using a
+        if self.delta_convention == "spot_pa":
+            self.a = np.exp(-self.rf * self.tau_360) * self.K_P/self.f
+
+        print("sigma_CSM %", np.round(self.find_SPI_sigma_K("CALL", self.K_CSM, sigma_S_opt)*100, 4))
+        print("sigma_PSM %", np.round(self.find_SPI_sigma_K("PUT", self.K_PSM, sigma_S_opt)*100, 4))
+        print("    v_SM calc: %", np.round(self.BS("CALL", self.K_CSM, self.find_SPI_sigma_K("CALL", self.K_CSM))["v_dom"] + self.BS("PUT", self.K_PSM, self.find_SPI_sigma_K("PUT", self.K_PSM))["v_dom"], 4)*100)
+        print("    v_SM market: %", np.round(self.v_SM, 4)*100)
 
         return sigma_S_opt
 
@@ -450,8 +475,10 @@ class OptionParams:
             raise NotImplementedError(f"Delta convention {self.delta_convention} not implemented.")
 
         if a is None:
-            self.a = np.exp(-self.rf * self.tau_360) * self.K_P/self.f
-            a = self.a
+            if self.delta_convention.lower() == "spot_pa":
+                a = np.exp(-self.rf * self.tau_360) * self.K_P/self.f
+            else:
+                a = self.a
 
         def f(sigma):
             if call_put.lower() == "put":
@@ -526,11 +553,19 @@ class OptionParams:
             if not self.sigma_S:
                 raise ValueError("sigma_S not set, cannot calculate K_C and K_P.")
             sigma_S = self.sigma_S
+        print(f"*** Setting K_C and K_P *** with sigma_S = %{sigma_S*100:.4f} ***")
+
         self.sigma_C = self.sigma_ATM + 0.5 * self.sigma_RR + sigma_S
         self.sigma_P = self.sigma_ATM - 0.5 * self.sigma_RR + sigma_S
 
+        print("sigma_C %", np.round(self.sigma_C*100, 4))
+        print("sigma_P %", np.round(self.sigma_P*100, 4))
+
         self.K_C = self.calc_strike("CALL", self.sigma_C, self.delta_tilde)  # Call strike at delta pillar with smile vol
         self.K_P = self.calc_strike("PUT", self.sigma_P, -self.delta_tilde)  # Put strike at delta pillar with smile vol
+
+        print("K_C:", np.round(self.K_C, 2))
+        print("K_P:", np.round(self.K_P, 2))
 
     def print_init(self):
         print("OptionParams initialized with:")
@@ -744,12 +779,12 @@ rf_simple = 4.35 / 100
 sigma_ATM = 9.96 / 100  # ATM volatility
 sigma_RR = 21 / 100  # Risk Reversal volatility
 sigma_SQ = 2.26 / 100  # Quoted Strangle volatility
-convention = "Convention A"
+convention = "Convention B"
 
 if convention == "Convention B":
     K_ATM_convention = "fwd"
     delta_convention = "spot"
-elif convention == "Convention A":
+elif convention == "Convention B":
     K_ATM_convention = "fwd_delta_neutral"
     delta_convention = "spot_pa"
 

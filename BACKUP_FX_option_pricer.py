@@ -178,22 +178,21 @@ class OptionParams:
                 # print("#######################################################")
                 # print()
                 return delta_S_pa - delta
-            
-            K_array = np.linspace(K_min * 0.8, K_max * 1.2, 1000)
+
+            K_array = np.linspace(K_min * 0.8, K_max * 1.2, 100)
             f_array = np.vectorize(f)(K_array)
             sign_flip_indexes = get_sign_flip_indexes(f_array)
 
             if sign_flip_indexes is None:
                 # No sign flip
                 ## DEBUG ##
-                plt.plot(K_array, f_array, label='Objective Function')
-                plt.grid()
-                plt.xlabel("Strike K")
-                plt.ylabel("f(K)")
-                plt.axhline(0, color='red', linestyle='--', label='Zero Line')
-                plt.show()
-                print("No sign flip found, returning default K")
-                return K_npa
+                print("No sign flip found in calc_strike")
+                # plt.plot(K_array, f_array, label='Objective Function')
+                # plt.grid()
+                # plt.axhline(0, color='red', linestyle='--', label='Zero Line')
+                # plt.show()
+                # print("No sign flip found, returning default K")
+                # return K_npa
 
             # Adaptive bracket expansion
             max_expansions = 10
@@ -294,7 +293,7 @@ class OptionParams:
         v_for = v_dom/self.x
 
         delta_S = phi * np.exp(-self.rf * self.tau_360) * ss.norm.cdf(phi * d1)
-        delta_S_pa = delta_S - v_for
+        delta_S_pa = phi * np.exp(-self.rf * self.tau_360) * K/self.f * ss.norm.cdf(phi * d2)
         delta_dual = -phi * np.exp(-self.rd * self.tau_360) * ss.norm.cdf(phi * d2)
         delta_fwd = phi * ss.norm.cdf(phi * d1)
         delta_fwd_pa = phi * K/self.f * ss.norm.cdf(phi * d2)
@@ -381,22 +380,19 @@ class OptionParams:
 
                 v_call = self.BS("CALL", self.K_CSM, sigma_CSM)["v_dom"]
                 v_put = self.BS("PUT",  self.K_PSM, sigma_PSM)["v_dom"]
-                print("    sigma_S: %", np.round(sigma_S*100, 4))
-                print("    sigma_S optimization objective: %", np.round((v_call + v_put) - self.v_SM, 4)*100)
+                # print("    sigma_S optimization objective: %", np.round((v_call + v_put) - self.v_SM, 6)*100)
                 return (v_call + v_put) - self.v_SM
         elif self.delta_convention == "spot_pa":
-            if self.a is None:
-                self.a = np.exp(-self.rf * self.tau_360) * self.K_PSM/self.f
+            print("Inside optimize_sigma_S with spot_pa delta convention")
 
             def f(sigma_S):
-                self.set_K_C_P(sigma_S)
+                self.set_K_C_P(sigma_S)  # Ensure K_C and K_P are set before using a
                 a = np.exp(-self.rf * self.tau_360) * self.K_P/self.f
-
                 sigma_CSM = self.find_SPI_sigma_K("CALL", self.K_CSM, sigma_S, a, optimizing_sigma_S=True)
                 sigma_PSM = self.find_SPI_sigma_K("PUT", self.K_PSM, sigma_S, a, optimizing_sigma_S=True)
 
                 if np.isnan(sigma_CSM) or np.isnan(sigma_PSM):
-                    # print("sigma_CSM or sigma_PSM is NaN, returning NaN")
+                    print("sigma_CSM or sigma_PSM is NaN, returning NaN")
                     return np.inf
 
                 v_call = self.BS("CALL", self.K_CSM, sigma_CSM)["v_dom"]
@@ -404,13 +400,36 @@ class OptionParams:
                 print("    sigma_S: %", np.round(sigma_S*100, 4))
                 print("    sigma_S optimization objective: %", np.round((v_call + v_put) - self.v_SM, 4)*100)
                 return (v_call + v_put) - self.v_SM
+        print("Initial sigma_S guess: %", np.round(self.sigma_SQ * 100, 4))
+        sigma_S_array = np.linspace(-self.sigma_ATM, self.sigma_SQ + 0.1, 50)
+        # print("sigma_S_array:", np.round(sigma_S_array, 6))
+        f_array = np.vectorize(f)(sigma_S_array)
+        # print("f_array:", np.round(f_array, 6))
+        sign_flip_indexes = get_sign_flip_indexes(f_array)
+        print("sign_flip_indexes:", sign_flip_indexes)
+        ## DEBUG ##
+        plt.plot(sigma_S_array, f_array, label='sigma_S Objective Function')
+        plt.grid()
+        plt.xlabel('sigma_S')
+        plt.ylabel('Objective Function Value')
+        plt.axhline(0, color='red', linestyle='--', label='Zero Line')
+        plt.show()
 
-        sigma_S_min = self.sigma_SQ - 0.1
-        sigma_S_max = self.sigma_SQ + 0.1
+        if sign_flip_indexes is None:
+            # No sign flip, return the initial guess
+            print("No sign flip found, returning initial sigma_S")
+            return self.sigma_SQ
+
+        sigma_S_min = sigma_S_array[sign_flip_indexes[-1]]
+        sigma_S_max = sigma_S_array[sign_flip_indexes[-1]+1]
+        # sigma_S_min = -(self.sigma_ATM - 0.5 * self.sigma_RR)
+        # sigma_S_max = self.sigma_SQ + 0.3
+        print("sigma_S_min:", np.round(sigma_S_min, 6))
+        print("sigma_S_max:", np.round(sigma_S_max, 6))
         # find root
         res = root_scalar(
             f,
-            method='secant',  #TODO
+            method='brentq',  #TODO
             bracket=[sigma_S_min, sigma_S_max],
             xtol=eps,
             x0=self.sigma_SQ,  # initial guess
@@ -419,13 +438,18 @@ class OptionParams:
         sigma_S_opt = res.root
         print(f"sigma_S_opt: %{sigma_S_opt*100:.2f}")
         self.sigma_S = sigma_S_opt  # update the instance variable
-        print("sigma_CSM %", np.round(self.find_SPI_sigma_K("CALL", self.K_CSM, sigma_S_opt)*100, 2))
-        print("sigma_PSM %", np.round(self.find_SPI_sigma_K("PUT", self.K_PSM, sigma_S_opt)*100, 2))
-        print("v_SM calc: %", np.round(self.BS("CALL", self.K_CSM, self.find_SPI_sigma_K("CALL", self.K_CSM))["v_dom"] + self.BS("PUT", self.K_PSM, self.find_SPI_sigma_K("PUT", self.K_PSM))["v_dom"], 4)*100)
+        # self.set_K_C_P(self.sigma_S)  # Ensure K_C and K_P are set before using a
+        if self.delta_convention == "spot_pa":
+            self.a = np.exp(-self.rf * self.tau_360) * self.K_P/self.f
+
+        print("sigma_CSM %", np.round(self.find_SPI_sigma_K("CALL", self.K_CSM, sigma_S_opt)*100, 4))
+        print("sigma_PSM %", np.round(self.find_SPI_sigma_K("PUT", self.K_PSM, sigma_S_opt)*100, 4))
+        print("    v_SM calc: %", np.round(self.BS("CALL", self.K_CSM, self.find_SPI_sigma_K("CALL", self.K_CSM))["v_dom"] + self.BS("PUT", self.K_PSM, self.find_SPI_sigma_K("PUT", self.K_PSM))["v_dom"], 4)*100)
+        print("    v_SM market: %", np.round(self.v_SM, 4)*100)
 
         return sigma_S_opt
 
-    def find_SPI_sigma_K(self, call_put, K, sigma_S=None, a=None, eps=1e-6, max_iter=10000, optimizing_sigma_S=False):
+    def find_SPI_sigma_K(self, call_put, K, sigma_S=None, a=None, eps=1e-3, max_iter=10000, optimizing_sigma_S=False):
         """
         Find the implied volatility for a given strike K using the SPI model.
 
@@ -433,7 +457,7 @@ class OptionParams:
             K (float): Strike price for which to find the implied volatility.
         """
 
-        print(f"-- Inside find_SPI_sigma_K for K={K} --")
+        print(f"-- Inside find_SPI_sigma_K for K={K:.2f} --")
         if not sigma_S:
             sigma_S = self.sigma_S
 
@@ -450,8 +474,10 @@ class OptionParams:
             raise NotImplementedError(f"Delta convention {self.delta_convention} not implemented.")
 
         if a is None:
-            self.a = np.exp(-self.rf * self.tau_360) * self.K_P/self.f
-            a = self.a
+            if self.delta_convention.lower() == "spot_pa":
+                a = np.exp(-self.rf * self.tau_360) * self.K_P/self.f
+            else:
+                a = self.a
 
         def f(sigma):
             if call_put.lower() == "put":
@@ -477,29 +503,31 @@ class OptionParams:
             # find root
             res = root_scalar(
                 f,
-                method='brentq',
+                method='brentq',  # or 'brentq' if you prefer
                 bracket=[vol_min, vol_max],  # reasonable bounds for the volatility
                 x0=self.sigma_ATM,  # initial guess
                 xtol=eps,
                 maxiter=max_iter
             )
             sigma_K = res.root
-            print(f"BrentQ method used, sigma for K={K}: %", np.round(sigma_K*100, 2))
+            print(f"BrentQ method used, sigma for K={K:.2f}: %", np.round(sigma_K*100, 2))
             return sigma_K
 
         else:
-            sigma_array = np.linspace(0.001, 0.5, 1000)
+            sigma_array = np.linspace(0.001, 0.8, 1000)
             f_array = np.vectorize(f)(sigma_array)
             sign_flip_indexes = get_sign_flip_indexes(f_array)
 
             if sign_flip_indexes is None:
-                # # No sign flip
+                # No sign flip
                 # ## DEBUG ##
-                # plt.plot(sigma_array, f_array, label='Objective Function')
-                # plt.title(f"Sigma_S = %{100*sigma_S:.4f}, K = {K:.4f}")
-                # plt.grid()
-                # plt.axhline(0, color='red', linestyle='--', label='Zero Line')
-                # plt.show()
+                # if not optimizing_sigma_S:
+                #     plt.plot(sigma_array, f_array, label='Objective Function')
+                #     plt.title(f"Sigma_S = %{100*sigma_S:.4f}, K = {K:.4f}")
+                #     plt.grid()
+                #     plt.axhline(0, color='red', linestyle='--', label='Zero Line')
+                #     plt.show()
+                #     return sigma_array[np.argmax(f_array)]
                 return 0.01
 
             # print("sign_flip_indexes:", sign_flip_indexes)
@@ -508,29 +536,32 @@ class OptionParams:
             vol_max = sigma_array[sign_flip_indexes[-1]+1]
             res = root_scalar(
                 f,
-                method='brentq',
+                method='brentq',  # or 'brentq' if you prefer
                 bracket=[vol_min, vol_max],  # reasonable bounds for the volatility
                 x0=self.sigma_ATM,  # initial guess
                 xtol=eps,
                 maxiter=max_iter
             )
             sigma_K = res.root
-            print(f"BrentQ method used, sigma for K={K}: %", np.round(sigma_K*100, 4))
+            print(f"BrentQ method used, sigma for K={K:.2f}: %", np.round(sigma_K*100, 4))
             return sigma_K
 
         # If we reach here, we didn't find a root in the initial bracket
         # print(f"Failed to find brentq root sigma_K after {expansions} expansions.")
 
-    def set_K_C_P(self, sigma_S=None):
-        if not sigma_S:
-            if not self.sigma_S:
-                raise ValueError("sigma_S not set, cannot calculate K_C and K_P.")
-            sigma_S = self.sigma_S
+    def set_K_C_P(self, sigma_S):
+        print(f"*** Setting K_C and K_P *** with sigma_S = %{sigma_S*100:.4f} ***")
         self.sigma_C = self.sigma_ATM + 0.5 * self.sigma_RR + sigma_S
         self.sigma_P = self.sigma_ATM - 0.5 * self.sigma_RR + sigma_S
 
+        print("sigma_C %", np.round(self.sigma_C*100, 4))
+        print("sigma_P %", np.round(self.sigma_P*100, 4))
+
         self.K_C = self.calc_strike("CALL", self.sigma_C, self.delta_tilde)  # Call strike at delta pillar with smile vol
         self.K_P = self.calc_strike("PUT", self.sigma_P, -self.delta_tilde)  # Put strike at delta pillar with smile vol
+
+        print("K_C:", np.round(self.K_C, 2))
+        print("K_P:", np.round(self.K_P, 2))
 
     def print_init(self):
         print("OptionParams initialized with:")
@@ -631,6 +662,7 @@ class OptionParams:
         print("K_P =", np.round(self.K_P, 4))
         print("delta K_P = %", np.round(self.BS("PUT", self.K_P, self.sigma_P)["delta_S"] * 100, 4))
 
+
 def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_spread, calendar, basis_dict, spot_bd, eval_date, expiry_date, delivery_date, x, rd_simple, rf_simple, sigma_ATM, sigma_RR, sigma_SQ, delta_tilde=0.25, K_ATM_convention="fwd", delta_convention="fwd_pa"):
     rd_bid = rd_simple - rd_spread / 2
     rd_ask = rd_simple + rd_spread / 2
@@ -672,7 +704,7 @@ def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_sp
     )
 
     mid_params.optimize_sigma_S()  # This will calibrate sigma_S
-    mid_params.set_K_C_P()  # This will set K_C and K_P based
+    mid_params.set_K_C_P(mid_params.sigma_S)  # This will set K_C and K_P based
     mid_params.print_results()  # Print the results of the calibration
 
     K_ATM = mid_params.K_ATM

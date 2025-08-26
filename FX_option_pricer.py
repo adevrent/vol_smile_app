@@ -381,8 +381,8 @@ class OptionParams:
 
                 v_call = self.BS("CALL", self.K_CSM, sigma_CSM)["v_dom"]
                 v_put = self.BS("PUT",  self.K_PSM, sigma_PSM)["v_dom"]
-                print("    sigma_S: %", np.round(sigma_S*100, 4))
-                print("    sigma_S optimization objective: %", np.round((v_call + v_put) - self.v_SM, 4)*100)
+                print("    sigma_S: %", np.round(sigma_S*100, 2))
+                print("    sigma_S optimization objective: %", np.round(((v_call + v_put) - self.v_SM)*100, 2))
                 return (v_call + v_put) - self.v_SM
         elif self.delta_convention == "spot_pa":
             if self.a is None:
@@ -401,8 +401,8 @@ class OptionParams:
 
                 v_call = self.BS("CALL", self.K_CSM, sigma_CSM)["v_dom"]
                 v_put = self.BS("PUT",  self.K_PSM, sigma_PSM)["v_dom"]
-                print("    sigma_S: %", np.round(sigma_S*100, 4))
-                print("    sigma_S optimization objective: %", np.round((v_call + v_put) - self.v_SM, 4)*100)
+                print("    sigma_S: %", np.round(sigma_S*100, 2))
+                print("    sigma_S optimization objective: %", np.round(((v_call + v_put) - self.v_SM)*100, 2))
                 return (v_call + v_put) - self.v_SM
 
         sigma_S_min = self.sigma_SQ - 0.1
@@ -433,7 +433,7 @@ class OptionParams:
             K (float): Strike price for which to find the implied volatility.
         """
 
-        print(f"-- Inside find_SPI_sigma_K for K={K} --")
+        print(f"-- Inside find_SPI_sigma_K for K={K:.2f} --")
         if not sigma_S:
             sigma_S = self.sigma_S
 
@@ -484,7 +484,7 @@ class OptionParams:
                 maxiter=max_iter
             )
             sigma_K = res.root
-            print(f"BrentQ method used, sigma for K={K}: %", np.round(sigma_K*100, 2))
+            print(f"BrentQ method used, sigma for K={K:.2f}: %", np.round(sigma_K*100, 2))
             return sigma_K
 
         else:
@@ -515,7 +515,7 @@ class OptionParams:
                 maxiter=max_iter
             )
             sigma_K = res.root
-            print(f"BrentQ method used, sigma for K={K}: %", np.round(sigma_K*100, 4))
+            print(f"BrentQ method used, sigma for K={K:.2f}: %", np.round(sigma_K*100, 2))
             return sigma_K
 
         # If we reach here, we didn't find a root in the initial bracket

@@ -10,6 +10,7 @@ from utils import convert_datetype, convert_simple_to_ccomp
 valid_K_ATM_conventions = ["fwd", "fwd_delta_neutral", "spot"]
 valid_delta_conventions = ["spot", "spot_pa", "fwd"]
 valid_conventions = ["Convention A", "Convention B"]
+delta_conventions_mapping = {"spot": "delta_S", "spot_pa": "delta_S_pa", "fwd": "delta_fwd"}
 
 def get_sign_flip_indexes(array):
     signs = np.sign(array)
@@ -80,16 +81,17 @@ class OptionParams:
         if K_ATM_convention.lower() == "fwd":
             self.K_ATM = self.f
         elif K_ATM_convention.lower() == "fwd_delta_neutral":
-            if delta_convention.lower() == "spot":
-                self.K_ATM = self.f * np.exp(0.5 * self.sigma_ATM**2 * self.tau_365)
-            elif delta_convention.lower() == "spot_pa":
-                self.K_ATM = self.f * np.exp(-0.5 * self.sigma_ATM**2 * self.tau_365)
+            self.K_ATM = self.f * np.exp(0.5 * self.sigma_ATM**2 * self.tau_365)
         elif K_ATM_convention.lower() == "spot":
             self.K_ATM = self.x
 
+        if delta_convention.lower() == "spot":
+            self.delta_ATM = self.BS("CALL", self.K_ATM, self.sigma_ATM)["delta_S"]
+        elif delta_convention.lower() == "spot_pa":
+            self.delta_ATM = self.BS("CALL", self.K_ATM, self.sigma_ATM)["delta_S_pa"]
+        else:
+            raise NotImplementedError(f"Delta convention {delta_convention} not implemented for delta_ATM calculation.")
         # print("self.K_ATM:", np.round(self.K_ATM, 2))
-
-        self.delta_ATM = self.BS("CALL", self.K_ATM, self.sigma_ATM)["delta_S"]  # spot delta of ATM call option, to be used in strangle calculation
 
         # SPI params
         self.delta_tilde = delta_tilde  # delta_tilde is the pillar smile delta, e.g. 0.25 or 0.10
@@ -179,20 +181,21 @@ class OptionParams:
                 # print()
                 return delta_S_pa - delta
 
-            K_array = np.linspace(K_min * 0.8, K_max * 1.2, 100)
+            K_array = np.linspace(K_min * 0.8, K_max * 1.2, 1000)
             f_array = np.vectorize(f)(K_array)
             sign_flip_indexes = get_sign_flip_indexes(f_array)
 
             if sign_flip_indexes is None:
                 # No sign flip
-                ## DEBUG ##
-                print("No sign flip found in calc_strike")
+                # ## DEBUG ##
                 # plt.plot(K_array, f_array, label='Objective Function')
                 # plt.grid()
+                # plt.xlabel("Strike K")
+                # plt.ylabel("f(K)")
                 # plt.axhline(0, color='red', linestyle='--', label='Zero Line')
                 # plt.show()
                 # print("No sign flip found, returning default K")
-                # return K_npa
+                return K_npa
 
             # Adaptive bracket expansion
             max_expansions = 10
@@ -293,7 +296,7 @@ class OptionParams:
         v_for = v_dom/self.x
 
         delta_S = phi * np.exp(-self.rf * self.tau_360) * ss.norm.cdf(phi * d1)
-        delta_S_pa = phi * np.exp(-self.rf * self.tau_360) * K/self.f * ss.norm.cdf(phi * d2)
+        delta_S_pa = delta_S - v_for
         delta_dual = -phi * np.exp(-self.rd * self.tau_360) * ss.norm.cdf(phi * d2)
         delta_fwd = phi * ss.norm.cdf(phi * d1)
         delta_fwd_pa = phi * K/self.f * ss.norm.cdf(phi * d2)
@@ -360,7 +363,7 @@ class OptionParams:
         sigma = self.sigma_ATM + c1*(delta_call - self.delta_ATM) + c2*(delta_call - self.delta_ATM)**2
         return sigma
 
-    def optimize_sigma_S(self, eps=1e-6, max_iter=10000):
+    def optimize_sigma_S(self, eps=1e-9, max_iter=10000):
         """
         Calibrate sigma_S (smile-strangle vol) so that the
         SPI strangle price matches the market strangle value.
@@ -386,7 +389,7 @@ class OptionParams:
             print("Inside optimize_sigma_S with spot_pa delta convention")
 
             def f(sigma_S):
-                self.set_K_C_P(sigma_S)  # Ensure K_C and K_P are set before using a
+                self.set_K_C_P(sigma_S, optimizing_sigma_S=True)  # Ensure K_C and K_P are set before using a
                 a = np.exp(-self.rf * self.tau_360) * self.K_P/self.f
                 sigma_CSM = self.find_SPI_sigma_K("CALL", self.K_CSM, sigma_S, a, optimizing_sigma_S=True)
                 sigma_PSM = self.find_SPI_sigma_K("PUT", self.K_PSM, sigma_S, a, optimizing_sigma_S=True)
@@ -401,19 +404,19 @@ class OptionParams:
                 print("    sigma_S optimization objective: %", np.round((v_call + v_put) - self.v_SM, 4)*100)
                 return (v_call + v_put) - self.v_SM
         print("Initial sigma_S guess: %", np.round(self.sigma_SQ * 100, 4))
-        sigma_S_array = np.linspace(-self.sigma_ATM, self.sigma_SQ + 0.1, 50)
+        sigma_S_array = np.linspace(-self.sigma_ATM, self.sigma_SQ + 0.1, 10)
         # print("sigma_S_array:", np.round(sigma_S_array, 6))
         f_array = np.vectorize(f)(sigma_S_array)
         # print("f_array:", np.round(f_array, 6))
         sign_flip_indexes = get_sign_flip_indexes(f_array)
         print("sign_flip_indexes:", sign_flip_indexes)
-        ## DEBUG ##
-        plt.plot(sigma_S_array, f_array, label='sigma_S Objective Function')
-        plt.grid()
-        plt.xlabel('sigma_S')
-        plt.ylabel('Objective Function Value')
-        plt.axhline(0, color='red', linestyle='--', label='Zero Line')
-        plt.show()
+        # ## DEBUG ##
+        # plt.plot(sigma_S_array, f_array, label='sigma_S Objective Function')
+        # plt.grid()
+        # plt.xlabel('sigma_S')
+        # plt.ylabel('Objective Function Value')
+        # plt.axhline(0, color='red', linestyle='--', label='Zero Line')
+        # plt.show()
 
         if sign_flip_indexes is None:
             # No sign flip, return the initial guess
@@ -438,7 +441,7 @@ class OptionParams:
         sigma_S_opt = res.root
         print(f"sigma_S_opt: %{sigma_S_opt*100:.2f}")
         self.sigma_S = sigma_S_opt  # update the instance variable
-        # self.set_K_C_P(self.sigma_S)  # Ensure K_C and K_P are set before using a
+        self.set_K_C_P(self.sigma_S)  # Ensure K_C and K_P are set before using a
         if self.delta_convention == "spot_pa":
             self.a = np.exp(-self.rf * self.tau_360) * self.K_P/self.f
 
@@ -449,7 +452,7 @@ class OptionParams:
 
         return sigma_S_opt
 
-    def find_SPI_sigma_K(self, call_put, K, sigma_S=None, a=None, eps=1e-3, max_iter=10000, optimizing_sigma_S=False):
+    def find_SPI_sigma_K(self, call_put, K, sigma_S=None, a=None, eps=1e-6, max_iter=10000, optimizing_sigma_S=False):
         """
         Find the implied volatility for a given strike K using the SPI model.
 
@@ -503,7 +506,7 @@ class OptionParams:
             # find root
             res = root_scalar(
                 f,
-                method='brentq',  # or 'brentq' if you prefer
+                method='brentq',
                 bracket=[vol_min, vol_max],  # reasonable bounds for the volatility
                 x0=self.sigma_ATM,  # initial guess
                 xtol=eps,
@@ -514,21 +517,22 @@ class OptionParams:
             return sigma_K
 
         else:
-            sigma_array = np.linspace(0.001, 0.8, 1000)
+            sigma_array = np.linspace(0.001, 0.5, 1000)
             f_array = np.vectorize(f)(sigma_array)
             sign_flip_indexes = get_sign_flip_indexes(f_array)
 
             if sign_flip_indexes is None:
-                # No sign flip
+                # # No sign flip
                 # ## DEBUG ##
-                # if not optimizing_sigma_S:
-                #     plt.plot(sigma_array, f_array, label='Objective Function')
-                #     plt.title(f"Sigma_S = %{100*sigma_S:.4f}, K = {K:.4f}")
-                #     plt.grid()
-                #     plt.axhline(0, color='red', linestyle='--', label='Zero Line')
-                #     plt.show()
-                #     return sigma_array[np.argmax(f_array)]
-                return 0.01
+                # plt.plot(sigma_array, f_array, label='Objective Function')
+                # plt.title(f"Sigma_S = %{100*sigma_S:.4f}, K = {K:.4f}")
+                # plt.grid()
+                # plt.axhline(0, color='red', linestyle='--', label='Zero Line')
+                # plt.show()
+                if not optimizing_sigma_S:
+                    raise ValueError(f"No sign flip found in f(sigma) for K={K:.2f}, cannot find root.")
+                else:
+                    return 0.01
 
             # print("sign_flip_indexes:", sign_flip_indexes)
 
@@ -536,26 +540,35 @@ class OptionParams:
             vol_max = sigma_array[sign_flip_indexes[-1]+1]
             res = root_scalar(
                 f,
-                method='brentq',  # or 'brentq' if you prefer
+                method='brentq',
                 bracket=[vol_min, vol_max],  # reasonable bounds for the volatility
                 x0=self.sigma_ATM,  # initial guess
                 xtol=eps,
                 maxiter=max_iter
             )
             sigma_K = res.root
-            print(f"BrentQ method used, sigma for K={K:.2f}: %", np.round(sigma_K*100, 4))
+            print(f"BrentQ method used, sigma for K={K:.2f}: %", np.round(sigma_K*100, 2))
             return sigma_K
 
         # If we reach here, we didn't find a root in the initial bracket
         # print(f"Failed to find brentq root sigma_K after {expansions} expansions.")
 
-    def set_K_C_P(self, sigma_S):
+    def set_K_C_P(self, sigma_S=None, optimizing_sigma_S=False):
+        if not sigma_S:
+            if not self.sigma_S:
+                raise ValueError("sigma_S not set, cannot calculate K_C and K_P.")
+            sigma_S = self.sigma_S
         print(f"*** Setting K_C and K_P *** with sigma_S = %{sigma_S*100:.4f} ***")
+
         self.sigma_C = self.sigma_ATM + 0.5 * self.sigma_RR + sigma_S
         self.sigma_P = self.sigma_ATM - 0.5 * self.sigma_RR + sigma_S
 
         print("sigma_C %", np.round(self.sigma_C*100, 4))
         print("sigma_P %", np.round(self.sigma_P*100, 4))
+
+        if not optimizing_sigma_S:
+            if (self.sigma_C <= 0) or (self.sigma_P <= 0):
+                raise ValueError("Calculated sigma_C or sigma_P is non-positive, cannot calculate K_C and K_P.")
 
         self.K_C = self.calc_strike("CALL", self.sigma_C, self.delta_tilde)  # Call strike at delta pillar with smile vol
         self.K_P = self.calc_strike("PUT", self.sigma_P, -self.delta_tilde)  # Put strike at delta pillar with smile vol
@@ -591,7 +604,7 @@ class OptionParams:
             print("sigma_S not set, optimizing...")
             self.optimize_sigma_S()
 
-        K_arr = np.linspace(self.K_ATM - self.K_ATM/4, self.K_ATM + self.K_ATM/4, 20)
+        K_arr = np.linspace(self.K_ATM/5, self.K_ATM + self.K_ATM/4, 20)
         sigmas = np.array([self.find_SPI_sigma_K(self.simple_call_put(K), K)*100 for K in K_arr])
 
         plt.figure(figsize=(10, 6))
@@ -634,12 +647,12 @@ class OptionParams:
     def print_results(self):
         print("-" * 50)
         print("Delta pillars:")
-        print("K_C:", self.K_C)
-        print("K_P:", self.K_P)
+        print("K_C:", np.round(self.K_C, 2))
+        print("K_P:", np.round(self.K_P, 2))
         print("sigma(K_C) calc: %", np.round(self.sigma_C * 100, 4))
-        print("delta(K_C) calc: %", np.round(self.BS("CALL", self.K_C, self.sigma_C)["delta_S"] * 100, 4))
+        print("delta(K_C) calc: %", np.round(self.BS("CALL", self.K_C, self.sigma_C)[delta_conventions_mapping[self.delta_convention]] * 100, 4))
         print("sigma(K_P) calc: %", np.round(self.sigma_P * 100, 4))
-        print("delta(K_P) calc: %", np.round(self.BS("PUT", self.K_P, self.sigma_P)["delta_S"] * 100, 4))
+        print("delta(K_P) calc: %", np.round(self.BS("PUT", self.K_P, self.sigma_P)[delta_conventions_mapping[self.delta_convention]] * 100, 4))
         print("-" * 50)
         print("sigma_S calc: %", np.round(self.sigma_S*100, 4))
         print("sigma_S calc via P, C: %", ((self.find_SPI_sigma_K("CALL", K=self.K_C) + self.find_SPI_sigma_K("PUT", K=self.K_P))/2 - self.sigma_ATM) * 100)
@@ -649,7 +662,13 @@ class OptionParams:
         print("sigma(K_ATM) given: %", self.sigma_ATM * 100)
         print("-" * 50)
         print("RESTRICTION 2:")
-        print("sigma_RR calc: %", np.round((self.find_SPI_sigma_K("CALL", K=self.K_C) - self.find_SPI_sigma_K("PUT", K=self.K_P))*100, 4))
+        sigma_C = self.find_SPI_sigma_K("CALL", K=self.K_C)
+        sigma_P = self.find_SPI_sigma_K("PUT", K=self.K_P)
+        print("K_C:", np.round(self.K_C, 4))
+        print("K_P:", np.round(self.K_P, 4))
+        print("sigma_C calc: %", np.round(sigma_C * 100, 4))
+        print("sigma_P calc: %", np.round(sigma_P * 100, 4))
+        print("sigma_RR calc: %", np.round((sigma_C - sigma_P) * 100, 4))
         print("sigma_RR given: %", np.round(self.sigma_RR*100, 4))
         print("-" * 50)
         print("RESTRICTION 3:")
@@ -658,10 +677,9 @@ class OptionParams:
         print("-" * 50)
 
         print("K_C =", np.round(self.K_C, 4))
-        print("delta K_C = %", np.round(self.BS("CALL", self.K_C, self.sigma_C)["delta_S"] * 100, 4))
+        print("delta K_C = %", np.round(self.BS("CALL", self.K_C, self.sigma_C)[delta_conventions_mapping[self.delta_convention]] * 100, 4))
         print("K_P =", np.round(self.K_P, 4))
-        print("delta K_P = %", np.round(self.BS("PUT", self.K_P, self.sigma_P)["delta_S"] * 100, 4))
-
+        print("delta K_P = %", np.round(self.BS("PUT", self.K_P, self.sigma_P)[delta_conventions_mapping[self.delta_convention]] * 100, 4))
 
 def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_spread, calendar, basis_dict, spot_bd, eval_date, expiry_date, delivery_date, x, rd_simple, rf_simple, sigma_ATM, sigma_RR, sigma_SQ, delta_tilde=0.25, K_ATM_convention="fwd", delta_convention="fwd_pa"):
     rd_bid = rd_simple - rd_spread / 2
@@ -704,8 +722,8 @@ def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_sp
     )
 
     mid_params.optimize_sigma_S()  # This will calibrate sigma_S
-    mid_params.set_K_C_P(mid_params.sigma_S)  # This will set K_C and K_P based
-    mid_params.print_results()  # Print the results of the calibration
+    mid_params.set_K_C_P()  # This will set K_C and K_P based
+    # mid_params.print_results()  # Print the results of the calibration
 
     K_ATM = mid_params.K_ATM
     sigma_ATM_bid = sigma_ATM - ATM_vol_spread / 2
@@ -731,16 +749,16 @@ def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_sp
     if sigma_K_bid > sigma_K_mid:
         sigma_K_bid = np.maximum(sigma_K_bid - (sigma_K_ask - sigma_K_mid), 1e-9)
 
-    print("_" * 40)
-    print()
-    print(f"TX results for {buy_sell.upper()} {call_put.upper()} @ K = {K}:")
-    print()
-    print("Domestic Rate (rd):", np.round(rd * 100, 4), "%")
-    print("Foreign Rate (rf):", np.round(rf * 100, 4), "%")
-    print()
-    print(f"MID Forward Parity: {np.round(mid_params.f, 4)}")
-    print()
-    print(f"ATM Strike Convention: {K_ATM_convention}\nDelta convention: {delta_convention}\n@{K:.3f} {call_put} results :")
+    # print("_" * 40)
+    # print()
+    # print(f"TX results for {buy_sell.upper()} {call_put.upper()} @ K = {K}:")
+    # print()
+    # print("Domestic Rate (rd):", np.round(rd * 100, 4), "%")
+    # print("Foreign Rate (rf):", np.round(rf * 100, 4), "%")
+    # print()
+    # print(f"MID Forward Parity: {np.round(mid_params.f, 4)}")
+    # print()
+    # print(f"ATM Strike Convention: {K_ATM_convention}\nDelta convention: {delta_convention}\n@{K:.3f} {call_put} results :")
 
     df_dict = {"BID": [f"%{np.round(sigma_K_bid * 100, 5)}", f"%{np.round(v_for_bid * 100, 5)}"],
                "ASK": [f"%{np.round(sigma_K_ask * 100, 5)}", f"%{np.round(v_for_ask * 100, 5)}"],
@@ -755,44 +773,44 @@ def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_sp
     # print("v_for diff: %", np.round((v_for_ask - v_for_bid)*100, 4))
     return df, mid_params
 
-# DEBUG
-buy_sell = "BUY"
-call_put = "CALL"
-K = 45.0
+# # DEBUG
+# buy_sell = "BUY"
+# call_put = "CALL"
+# K = 45.0
 
-rd_spread = 0.0 / 100
-rf_spread = 0.0 / 100
-ATM_vol_spread = 3 / 100
+# rd_spread = 0.0 / 100
+# rf_spread = 0.0 / 100
+# ATM_vol_spread = 3 / 100
 
-calendar = ql.Turkey()
-basis_dict = {"FOR": ql.Actual360(), "DOM": ql.Actual365Fixed()}
-spot_bd = 1
-eval_date = ql.Date(21, 8, 2025)
-expiry_date = ql.Date(3, 10, 2025)
-delivery_date = ql.Date(4, 10, 2025)
-x = 40.94
-rd_simple = 41.16 / 100
-rf_simple = 4.35 / 100
-sigma_ATM = 9.96 / 100  # ATM volatility
-sigma_RR = 21 / 100  # Risk Reversal volatility
-sigma_SQ = 2.26 / 100  # Quoted Strangle volatility
-convention = "Convention A"
+# calendar = ql.Turkey()
+# basis_dict = {"FOR": ql.Actual360(), "DOM": ql.Actual365Fixed()}
+# spot_bd = 1
+# eval_date = ql.Date(21, 8, 2025)
+# expiry_date = ql.Date(3, 10, 2025)
+# delivery_date = ql.Date(4, 10, 2025)
+# x = 40.94
+# rd_simple = 41.16 / 100
+# rf_simple = 4.35 / 100
+# sigma_ATM = 9.96 / 100  # ATM volatility
+# sigma_RR = 11 / 100  # Risk Reversal volatility
+# sigma_SQ = 2.26 / 100  # Quoted Strangle volatility
+# convention = "Convention A"
 
-if convention == "Convention B":
-    K_ATM_convention = "fwd"
-    delta_convention = "spot"
-elif convention == "Convention A":
-    K_ATM_convention = "fwd_delta_neutral"
-    delta_convention = "spot_pa"
+# if convention == "Convention B":
+#     K_ATM_convention = "fwd"
+#     delta_convention = "spot"
+# elif convention == "Convention A":
+#     K_ATM_convention = "fwd_delta_neutral"
+#     delta_convention = "spot_pa"
 
-delta_tilde = 0.25  # pillar smile delta, e.g. 0.25 or 0.10
+# delta_tilde = 0.25  # pillar smile delta, e.g. 0.25 or 0.10
 
-df, mid_params = calc_tx_with_spreads(
-    buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_spread,
-    calendar, basis_dict, spot_bd, eval_date, expiry_date,
-    delivery_date, x, rd_simple, rf_simple, sigma_ATM, sigma_RR,
-    sigma_SQ, delta_tilde=delta_tilde, K_ATM_convention=K_ATM_convention,
-    delta_convention=delta_convention)
+# df, mid_params = calc_tx_with_spreads(
+#     buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_spread,
+#     calendar, basis_dict, spot_bd, eval_date, expiry_date,
+#     delivery_date, x, rd_simple, rf_simple, sigma_ATM, sigma_RR,
+#     sigma_SQ, delta_tilde=delta_tilde, K_ATM_convention=K_ATM_convention,
+#     delta_convention=delta_convention)
 
 # mid_params.plot_smile_K()  # Plot the implied volatility smile for the SPI model
 

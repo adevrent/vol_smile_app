@@ -10,6 +10,7 @@ from utils import convert_datetype, convert_simple_to_ccomp
 valid_K_ATM_conventions = ["fwd", "fwd_delta_neutral", "spot"]
 valid_delta_conventions = ["spot", "spot_pa", "fwd"]
 valid_conventions = ["Convention A", "Convention B"]
+delta_conventions_mapping = {"spot": "delta_S", "spot_pa": "delta_S_pa", "fwd": "delta_fwd"}
 
 def get_sign_flip_indexes(array):
     signs = np.sign(array)
@@ -80,16 +81,17 @@ class OptionParams:
         if K_ATM_convention.lower() == "fwd":
             self.K_ATM = self.f
         elif K_ATM_convention.lower() == "fwd_delta_neutral":
-            if delta_convention.lower() == "spot":
-                self.K_ATM = self.f * np.exp(0.5 * self.sigma_ATM**2 * self.tau_365)
-            elif delta_convention.lower() == "spot_pa":
-                self.K_ATM = self.f * np.exp(-0.5 * self.sigma_ATM**2 * self.tau_365)
+            self.K_ATM = self.f * np.exp(0.5 * self.sigma_ATM**2 * self.tau_365)
         elif K_ATM_convention.lower() == "spot":
             self.K_ATM = self.x
 
+        if delta_convention.lower() == "spot":
+            self.delta_ATM = self.BS("CALL", self.K_ATM, self.sigma_ATM)["delta_S"]
+        elif delta_convention.lower() == "spot_pa":
+            self.delta_ATM = self.BS("CALL", self.K_ATM, self.sigma_ATM)["delta_S_pa"]
+        else:
+            raise NotImplementedError(f"Delta convention {delta_convention} not implemented for delta_ATM calculation.")
         # print("self.K_ATM:", np.round(self.K_ATM, 2))
-
-        self.delta_ATM = self.BS("CALL", self.K_ATM, self.sigma_ATM)["delta_S"]  # spot delta of ATM call option, to be used in strangle calculation
 
         # SPI params
         self.delta_tilde = delta_tilde  # delta_tilde is the pillar smile delta, e.g. 0.25 or 0.10
@@ -595,7 +597,7 @@ class OptionParams:
             print("sigma_S not set, optimizing...")
             self.optimize_sigma_S()
 
-        K_arr = np.linspace(self.K_ATM - self.K_ATM/4, self.K_ATM + self.K_ATM/4, 20)
+        K_arr = np.linspace(self.K_ATM/5, self.K_ATM + self.K_ATM/4, 20)
         sigmas = np.array([self.find_SPI_sigma_K(self.simple_call_put(K), K)*100 for K in K_arr])
 
         plt.figure(figsize=(10, 6))
@@ -638,12 +640,12 @@ class OptionParams:
     def print_results(self):
         print("-" * 50)
         print("Delta pillars:")
-        print("K_C:", self.K_C)
-        print("K_P:", self.K_P)
+        print("K_C:", np.round(self.K_C, 2))
+        print("K_P:", np.round(self.K_P, 2))
         print("sigma(K_C) calc: %", np.round(self.sigma_C * 100, 4))
-        print("delta(K_C) calc: %", np.round(self.BS("CALL", self.K_C, self.sigma_C)["delta_S"] * 100, 4))
+        print("delta(K_C) calc: %", np.round(self.BS("CALL", self.K_C, self.sigma_C)[delta_conventions_mapping[self.delta_convention]] * 100, 4))
         print("sigma(K_P) calc: %", np.round(self.sigma_P * 100, 4))
-        print("delta(K_P) calc: %", np.round(self.BS("PUT", self.K_P, self.sigma_P)["delta_S"] * 100, 4))
+        print("delta(K_P) calc: %", np.round(self.BS("PUT", self.K_P, self.sigma_P)[delta_conventions_mapping[self.delta_convention]] * 100, 4))
         print("-" * 50)
         print("sigma_S calc: %", np.round(self.sigma_S*100, 4))
         print("sigma_S calc via P, C: %", ((self.find_SPI_sigma_K("CALL", K=self.K_C) + self.find_SPI_sigma_K("PUT", K=self.K_P))/2 - self.sigma_ATM) * 100)
@@ -653,7 +655,13 @@ class OptionParams:
         print("sigma(K_ATM) given: %", self.sigma_ATM * 100)
         print("-" * 50)
         print("RESTRICTION 2:")
-        print("sigma_RR calc: %", np.round((self.find_SPI_sigma_K("CALL", K=self.K_C) - self.find_SPI_sigma_K("PUT", K=self.K_P))*100, 4))
+        sigma_C = self.find_SPI_sigma_K("CALL", K=self.K_C)
+        sigma_P = self.find_SPI_sigma_K("PUT", K=self.K_P)
+        print("K_C:", np.round(self.K_C, 4))
+        print("K_P:", np.round(self.K_P, 4))
+        print("sigma_C calc: %", np.round(sigma_C * 100, 4))
+        print("sigma_P calc: %", np.round(sigma_P * 100, 4))
+        print("sigma_RR calc: %", np.round((sigma_C - sigma_P) * 100, 4))
         print("sigma_RR given: %", np.round(self.sigma_RR*100, 4))
         print("-" * 50)
         print("RESTRICTION 3:")
@@ -662,9 +670,9 @@ class OptionParams:
         print("-" * 50)
 
         print("K_C =", np.round(self.K_C, 4))
-        print("delta K_C = %", np.round(self.BS("CALL", self.K_C, self.sigma_C)["delta_S"] * 100, 4))
+        print("delta K_C = %", np.round(self.BS("CALL", self.K_C, self.sigma_C)[delta_conventions_mapping[self.delta_convention]] * 100, 4))
         print("K_P =", np.round(self.K_P, 4))
-        print("delta K_P = %", np.round(self.BS("PUT", self.K_P, self.sigma_P)["delta_S"] * 100, 4))
+        print("delta K_P = %", np.round(self.BS("PUT", self.K_P, self.sigma_P)[delta_conventions_mapping[self.delta_convention]] * 100, 4))
 
 def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_spread, calendar, basis_dict, spot_bd, eval_date, expiry_date, delivery_date, x, rd_simple, rf_simple, sigma_ATM, sigma_RR, sigma_SQ, delta_tilde=0.25, K_ATM_convention="fwd", delta_convention="fwd_pa"):
     rd_bid = rd_simple - rd_spread / 2
@@ -708,7 +716,7 @@ def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_sp
 
     mid_params.optimize_sigma_S()  # This will calibrate sigma_S
     mid_params.set_K_C_P()  # This will set K_C and K_P based
-    mid_params.print_results()  # Print the results of the calibration
+    # mid_params.print_results()  # Print the results of the calibration
 
     K_ATM = mid_params.K_ATM
     sigma_ATM_bid = sigma_ATM - ATM_vol_spread / 2
@@ -734,16 +742,16 @@ def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_sp
     if sigma_K_bid > sigma_K_mid:
         sigma_K_bid = np.maximum(sigma_K_bid - (sigma_K_ask - sigma_K_mid), 1e-9)
 
-    print("_" * 40)
-    print()
-    print(f"TX results for {buy_sell.upper()} {call_put.upper()} @ K = {K}:")
-    print()
-    print("Domestic Rate (rd):", np.round(rd * 100, 4), "%")
-    print("Foreign Rate (rf):", np.round(rf * 100, 4), "%")
-    print()
-    print(f"MID Forward Parity: {np.round(mid_params.f, 4)}")
-    print()
-    print(f"ATM Strike Convention: {K_ATM_convention}\nDelta convention: {delta_convention}\n@{K:.3f} {call_put} results :")
+    # print("_" * 40)
+    # print()
+    # print(f"TX results for {buy_sell.upper()} {call_put.upper()} @ K = {K}:")
+    # print()
+    # print("Domestic Rate (rd):", np.round(rd * 100, 4), "%")
+    # print("Foreign Rate (rf):", np.round(rf * 100, 4), "%")
+    # print()
+    # print(f"MID Forward Parity: {np.round(mid_params.f, 4)}")
+    # print()
+    # print(f"ATM Strike Convention: {K_ATM_convention}\nDelta convention: {delta_convention}\n@{K:.3f} {call_put} results :")
 
     df_dict = {"BID": [f"%{np.round(sigma_K_bid * 100, 5)}", f"%{np.round(v_for_bid * 100, 5)}"],
                "ASK": [f"%{np.round(sigma_K_ask * 100, 5)}", f"%{np.round(v_for_ask * 100, 5)}"],

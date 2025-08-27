@@ -773,6 +773,7 @@ def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_sp
     # print("v_for diff: %", np.round((v_for_ask - v_for_bid)*100, 4))
     return df, mid_params
 
+
 # # DEBUG
 # buy_sell = "BUY"
 # call_put = "CALL"
@@ -791,8 +792,8 @@ def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_sp
 # x = 40.94
 # rd_simple = 41.16 / 100
 # rf_simple = 4.35 / 100
-# sigma_ATM = 9.96 / 100  # ATM volatility
-# sigma_RR = 11 / 100  # Risk Reversal volatility
+# sigma_RR = 24 / 100  # Risk Reversal volatility
+# sigma_ATM = sigma_RR / 1.4  # ATM volatility
 # sigma_SQ = 2.26 / 100  # Quoted Strangle volatility
 # convention = "Convention A"
 

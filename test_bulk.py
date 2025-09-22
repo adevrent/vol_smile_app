@@ -21,7 +21,6 @@ spot_bd = 1
 eval_date = ql.Date(21, 8, 2025)
 days_arr = np.array([30, 60, 90, 180, 270, 360])
 
-
 x = 40.94
 rd_simple = 41.16 / 100
 rf_simple = 4.35 / 100
@@ -58,9 +57,13 @@ for i, num_days in enumerate(days_arr):
                     delta_convention=delta_convention)
 
                 flag_tensor[i, j, k] = 1
-            except ValueError:
+                print(f"Success for days={num_days}, sigma_RR={sigma_RR*100:.2f}%, ratio={ratio:.2f}")
+                print("_"*50)
+            except ValueError as e:
                 flag_tensor[i, j, k] = 0
+                print(f"Error: {e}")
                 print(f"Failed for days={num_days}, sigma_RR={sigma_RR*100:.2f}%, ratio={ratio:.2f}")
+                print("_"*50)
 flags_i = (flag_tensor == 1).sum()
 flags_0 = (flag_tensor == 0).sum()
 print(f"Success (1): {flags_i} | Fail (0): {flags_0}")

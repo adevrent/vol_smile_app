@@ -2,7 +2,7 @@ import streamlit as st
 import os, sys
 
 import QuantLib as ql
-from FX_option_pricer import calc_tx_with_spreads
+import FX_option_pricer
 import numpy as np
 import scipy.stats as ss
 import pandas as pd
@@ -94,7 +94,7 @@ if st.button("Compute"):
         st.error(f"Numeric input error: {e}")
         st.stop()
 
-    df, mid_params = calc_tx_with_spreads(
+    df, mid_params = FX_option_pricer.calc_tx_with_spreads(
         buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_spread,
         calendar, basis_dict, spot_bd, eval_date, expiry_date,
         delivery_date, x, rd_simple, rf_simple, sigma_ATM, sigma_RR,

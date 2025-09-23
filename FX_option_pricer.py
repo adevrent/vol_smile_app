@@ -826,6 +826,7 @@ def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_sp
 # sigma_ATM = sigma_RR / 1.4  # ATM volatility
 # sigma_SQ = 2.26 / 100  # Quoted Strangle volatility
 # convention = "Convention A"
+# dom_currency = "TRY"
 
 # if convention == "Convention B":
 #     K_ATM_convention = "fwd"
@@ -841,7 +842,7 @@ def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_sp
 #     calendar, basis_dict, spot_bd, eval_date, expiry_date,
 #     delivery_date, x, rd_simple, rf_simple, sigma_ATM, sigma_RR,
 #     sigma_SQ, delta_tilde=delta_tilde, K_ATM_convention=K_ATM_convention,
-#     delta_convention=delta_convention)
+#     delta_convention=delta_convention, dom_currency=dom_currency)
 
 # mid_params.plot_smile_K()  # Plot the implied volatility smile for the SPI model
 

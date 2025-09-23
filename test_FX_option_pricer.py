@@ -81,7 +81,7 @@ class OptionParams:
         if K_ATM_convention.lower() == "fwd":
             self.K_ATM = self.f
         elif K_ATM_convention.lower() == "fwd_delta_neutral":
-            if dom_currency == "TRY":
+            if dom_currency.lower() == "try":
                 self.K_ATM = self.f * np.exp(-0.5 * self.sigma_ATM**2 * self.tau_365)
             else:
                 self.K_ATM = self.f * np.exp(0.5 * self.sigma_ATM**2 * self.tau_365)
@@ -756,7 +756,7 @@ def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_sp
     mid_params.optimize_sigma_S()  # This will calibrate sigma_S
     # print("OPTIMIZE SIGMA_S COMPLETE !")
     mid_params.set_K_C_P()  # This will set K_C and K_P
-    mid_params.print_results()  # Print the results of the calibration
+    # mid_params.print_results()  # Print the results of the calibration
 
     K_ATM = mid_params.K_ATM
     sigma_ATM_bid = sigma_ATM - ATM_vol_spread / 2

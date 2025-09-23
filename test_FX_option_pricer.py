@@ -22,7 +22,7 @@ def get_sign_flip_indexes(array):
 
 
 class OptionParams:
-    def __init__(self, calendar, basis_dict, spot_bd, eval_date, expiry_date, delivery_date, x, rd_simple, rf_simple, sigma_ATM, sigma_RR, sigma_SQ, delta_tilde=0.25, K_ATM_convention="fwd", delta_convention="fwd_pa"):
+    def __init__(self, calendar, basis_dict, spot_bd, eval_date, expiry_date, delivery_date, x, rd_simple, rf_simple, sigma_ATM, sigma_RR, sigma_SQ, delta_tilde=0.25, K_ATM_convention="fwd", delta_convention="fwd_pa", dom_currency="TRY"):
         """call_put, K, sigma missing on purpose, to be set later"""
         self.calendar = calendar
         self.basis_dict = basis_dict
@@ -81,7 +81,10 @@ class OptionParams:
         if K_ATM_convention.lower() == "fwd":
             self.K_ATM = self.f
         elif K_ATM_convention.lower() == "fwd_delta_neutral":
-            self.K_ATM = self.f * np.exp(0.5 * self.sigma_ATM**2 * self.tau_365)
+            if dom_currency == "TRY":
+                self.K_ATM = self.f * np.exp(-0.5 * self.sigma_ATM**2 * self.tau_365)
+            else:
+                self.K_ATM = self.f * np.exp(0.5 * self.sigma_ATM**2 * self.tau_365)
         elif K_ATM_convention.lower() == "spot":
             self.K_ATM = self.x
 
@@ -709,7 +712,7 @@ class OptionParams:
         print("K_P =", np.round(self.K_P, 4))
         print("delta K_P = %", np.round(self.BS("PUT", self.K_P, self.sigma_P)[delta_conventions_mapping[self.delta_convention]] * 100, 4))
 
-def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_spread, calendar, basis_dict, spot_bd, eval_date, expiry_date, delivery_date, x, rd_simple, rf_simple, sigma_ATM, sigma_RR, sigma_SQ, delta_tilde=0.25, K_ATM_convention="fwd", delta_convention="fwd_pa"):
+def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_spread, calendar, basis_dict, spot_bd, eval_date, expiry_date, delivery_date, x, rd_simple, rf_simple, sigma_ATM, sigma_RR, sigma_SQ, delta_tilde=0.25, K_ATM_convention="fwd", delta_convention="fwd_pa", dom_currency="TRY"):
     rd_bid = rd_simple - rd_spread / 2
     rd_ask = rd_simple + rd_spread / 2
 
@@ -746,7 +749,8 @@ def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_sp
         sigma_SQ=sigma_SQ,
         delta_tilde=delta_tilde,
         K_ATM_convention=K_ATM_convention,
-        delta_convention=delta_convention
+        delta_convention=delta_convention,
+        dom_currency=dom_currency
     )
 
     mid_params.optimize_sigma_S()  # This will calibrate sigma_S
@@ -791,8 +795,8 @@ def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_sp
                "MID": [f"%{np.round(sigma_K_mid * 100, 5)}", f"%{np.round(v_for_mid * 100, 5)}"]}
 
     df = pd.DataFrame(df_dict, index=["sigma", "v_for"])
-    print(df)
-    print()
+    # print(df)
+    # print()
     # print("bid_ATM_v_for: %", np.round(bid_ATM_v_for*100, 5))
     # print("ask_ATM_v_for: %", np.round(ask_ATM_v_for*100, 5))
     # print("ATM_v_for_diff: %", np.round(ATM_v_for_diff*100, 5))

@@ -486,11 +486,14 @@ class OptionParams:
         if self.delta_convention.lower() == "spot":
             delta_type = "delta_S"
             a = self.a
+            a_K = a
         elif self.delta_convention.lower() == "fwd":
             delta_type = "delta_fwd"
             a = self.a
+            a_K = a
         elif self.delta_convention.lower() == "spot_pa":
             delta_type = "delta_S_pa"
+            a_K = (np.exp(-self.rf * self.tau_365) * K/self.f)
         else:
             raise NotImplementedError(f"Delta convention {self.delta_convention} not implemented.")
 
@@ -503,7 +506,7 @@ class OptionParams:
         def f(sigma):
             if call_put.lower() == "put":
                 delta = self.BS("PUT", K, sigma)[delta_type]
-                call_delta = delta + a
+                call_delta = delta + a_K
             else:
                 call_delta = self.BS("CALL", K, sigma)[delta_type]
             obj = self.calc_sigma_from_delta(call_delta, sigma_S, a) - sigma
@@ -649,32 +652,6 @@ class OptionParams:
         plt.grid()
         plt.show()
 
-    def plot_smile_delta(self):  # TODO
-        """
-        Plot the implied volatility smile for the SPI model.
-        """
-        if not self.sigma_S:
-            print("sigma_S not set, optimizing...")
-            self.optimize_sigma_S()
-
-        delta_arr_put = np.linspace(-0.01, -0.50, 20)
-        delta_arr_call = np.linspace(0.01, 0.50, 20)
-        sigmas_put = np.array([self.calc_sigma_from_delta(delta, self.sigma_S)*100 if delta > 0 else self.calc_sigma_from_delta(delta + self.a, self.sigma_S)*100 for delta in delta_arr_put])
-        sigmas_call = np.array([self.calc_sigma_from_delta(delta, self.sigma_S)*100 if delta > 0 else self.calc_sigma_from_delta(delta + self.a, self.sigma_S)*100 for delta in delta_arr_call])
-        delta_arr = np.concatenate((delta_arr_put, delta_arr_call))
-        sigmas = np.concatenate((sigmas_put, sigmas_call))
-
-        plt.figure(figsize=(10, 6))
-        plt.plot(sigmas, label='SPI Smile (%)', color='blue')
-        plt.axhline(self.sigma_ATM*100, color='red', linestyle='--', label='ATM Volatility')
-        plt.axhline(self.sigma_SM*100, color='green', linestyle='--', label='Market Strangle Volatility')
-        plt.title('SPI Implied Volatility Smile')
-        plt.xlabel('Delta')
-        plt.ylabel('Implied Volatility')
-        plt.legend()
-        plt.grid()
-        plt.show()
-
     def print_results(self):
         print("-" * 50)
         print("Delta pillars:")
@@ -807,24 +784,24 @@ def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_sp
 # # DEBUG
 # buy_sell = "BUY"
 # call_put = "CALL"
-# K = 45.0
+# K = 41.0
 
 # rd_spread = 0.0 / 100
 # rf_spread = 0.0 / 100
-# ATM_vol_spread = 3 / 100
+# ATM_vol_spread = 1.5 / 100
 
 # calendar = ql.Turkey()
-# basis_dict = {"FOR": ql.Actual360(), "DOM": ql.Actual365Fixed()}
+# basis_dict = {"FOR": ql.Actual360(), "DOM": ql.Actual360()}
 # spot_bd = 1
-# eval_date = ql.Date(21, 8, 2025)
-# expiry_date = ql.Date(3, 10, 2025)
-# delivery_date = ql.Date(4, 10, 2025)
-# x = 40.94
-# rd_simple = 41.16 / 100
-# rf_simple = 4.35 / 100
-# sigma_RR = 24 / 100  # Risk Reversal volatility
-# sigma_ATM = sigma_RR / 1.4  # ATM volatility
-# sigma_SQ = 2.26 / 100  # Quoted Strangle volatility
+# eval_date = ql.Date(23, 9, 2025)
+# expiry_date = ql.Date(23, 12, 2025)
+# delivery_date = ql.Date(24, 12, 2025)
+# x = 41.41
+# rd_simple = 39.93 / 100
+# rf_simple = 4.01 / 100
+# sigma_RR = 12.50 / 100  # Risk Reversal volatility
+# sigma_ATM = 13 / 100  # ATM volatility
+# sigma_SQ = 2.0 / 100  # Quoted Strangle volatility
 # convention = "Convention A"
 # dom_currency = "TRY"
 
@@ -843,6 +820,22 @@ def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_sp
 #     delivery_date, x, rd_simple, rf_simple, sigma_ATM, sigma_RR,
 #     sigma_SQ, delta_tilde=delta_tilde, K_ATM_convention=K_ATM_convention,
 #     delta_convention=delta_convention, dom_currency=dom_currency)
+
+# print(df)
+# print("-- CALL --")
+# sigma_call = mid_params.find_SPI_sigma_K("CALL", K, mid_params.sigma_S)
+# print("call vol:")
+# print(np.round(sigma_call*100, 4), "%")
+# print("call delta:")
+# print(np.round(mid_params.BS("CALL", K, sigma_call)["delta_S_pa"] * 100, 4), "%")
+# print("-- PUT --")
+# sigma_put = mid_params.find_SPI_sigma_K("PUT", K, mid_params.sigma_S)
+# print("put vol:")
+# print(np.round(sigma_put*100, 4), "%")
+# print("put delta:")
+# print(np.round(mid_params.BS("PUT", K, sigma_put)["delta_S_pa"] * 100, 4), "%")
+# print("call delta of put (for SPI):")
+# print(np.round((mid_params.BS("PUT", K, sigma_put)["delta_S_pa"] + (np.exp(-mid_params.rf * mid_params.tau_365) * K/mid_params.f))*100, 4), "%")
 
 # mid_params.plot_smile_K()  # Plot the implied volatility smile for the SPI model
 

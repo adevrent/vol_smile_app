@@ -81,7 +81,7 @@ class OptionParams:
         if K_ATM_convention.lower() == "fwd":
             self.K_ATM = self.f
         elif K_ATM_convention.lower() == "fwd_delta_neutral":
-            if dom_currency == "TRY":
+            if dom_currency.lower() == "try":
                 self.K_ATM = self.f * np.exp(-0.5 * self.sigma_ATM**2 * self.tau_365)
             else:
                 self.K_ATM = self.f * np.exp(0.5 * self.sigma_ATM**2 * self.tau_365)

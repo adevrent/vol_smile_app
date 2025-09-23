@@ -26,6 +26,7 @@ basis_dict = {"FOR": basis_map[basis_for], "DOM": basis_map[basis_dom]}
 eval_date_str     = st.text_input("Eval Date (YYYY-MM-DD)", placeholder="e.g. 2025-07-08")
 expiry_date_str   = st.text_input("Expiry Date (YYYY-MM-DD)", placeholder="e.g. 2025-07-23")
 delivery_date_str = st.text_input("Delivery Date (YYYY-MM-DD)", placeholder="e.g. 2025-07-24")
+dom_currency_str  = st.text_input("Domestic Currency", placeholder="e.g. TRY")
 
 def parse_ql_date(s: str) -> ql.Date:
     try:
@@ -98,7 +99,7 @@ if st.button("Compute"):
         calendar, basis_dict, spot_bd, eval_date, expiry_date,
         delivery_date, x, rd_simple, rf_simple, sigma_ATM, sigma_RR,
         sigma_SQ, delta_tilde=delta_tilde, K_ATM_convention=K_ATM_convention,
-        delta_convention=delta_convention)
+        delta_convention=delta_convention, dom_currency=dom_currency_str)
 
     df.index = ["Smile Volatility (%)", "Price (%) (FOR)"]
 

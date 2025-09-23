@@ -756,7 +756,7 @@ def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_sp
     mid_params.optimize_sigma_S()  # This will calibrate sigma_S
     # print("OPTIMIZE SIGMA_S COMPLETE !")
     mid_params.set_K_C_P()  # This will set K_C and K_P
-    # mid_params.print_results()  # Print the results of the calibration
+    mid_params.print_results()  # Print the results of the calibration
 
     K_ATM = mid_params.K_ATM
     sigma_ATM_bid = sigma_ATM - ATM_vol_spread / 2
@@ -795,8 +795,8 @@ def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_sp
                "MID": [f"%{np.round(sigma_K_mid * 100, 5)}", f"%{np.round(v_for_mid * 100, 5)}"]}
 
     df = pd.DataFrame(df_dict, index=["sigma", "v_for"])
-    # print(df)
-    # print()
+    print(df)
+    print()
     # print("bid_ATM_v_for: %", np.round(bid_ATM_v_for*100, 5))
     # print("ask_ATM_v_for: %", np.round(ask_ATM_v_for*100, 5))
     # print("ATM_v_for_diff: %", np.round(ATM_v_for_diff*100, 5))

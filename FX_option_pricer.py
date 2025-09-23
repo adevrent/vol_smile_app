@@ -783,7 +783,7 @@ def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_sp
 
 # # DEBUG
 # buy_sell = "BUY"
-# call_put = "CALL"
+# call_put = "PUT"
 # K = 41.0
 
 # rd_spread = 0.0 / 100
@@ -825,17 +825,17 @@ def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_sp
 # print("-- CALL --")
 # sigma_call = mid_params.find_SPI_sigma_K("CALL", K, mid_params.sigma_S)
 # print("call vol:")
-# print(np.round(sigma_call*100, 4), "%")
+# print(np.round(sigma_call*100, 2), "%")
 # print("call delta:")
-# print(np.round(mid_params.BS("CALL", K, sigma_call)["delta_S_pa"] * 100, 4), "%")
+# print(np.round(mid_params.BS("CALL", K, sigma_call)["delta_S_pa"] * 100, 2), "%")
 # print("-- PUT --")
 # sigma_put = mid_params.find_SPI_sigma_K("PUT", K, mid_params.sigma_S)
 # print("put vol:")
-# print(np.round(sigma_put*100, 4), "%")
+# print(np.round(sigma_put*100, 2), "%")
 # print("put delta:")
-# print(np.round(mid_params.BS("PUT", K, sigma_put)["delta_S_pa"] * 100, 4), "%")
+# print(np.round(mid_params.BS("PUT", K, sigma_put)["delta_S_pa"] * 100, 2), "%")
 # print("call delta of put (for SPI):")
-# print(np.round((mid_params.BS("PUT", K, sigma_put)["delta_S_pa"] + (np.exp(-mid_params.rf * mid_params.tau_365) * K/mid_params.f))*100, 4), "%")
+# print(np.round((mid_params.BS("PUT", K, sigma_put)["delta_S_pa"] + (np.exp(-mid_params.rf * mid_params.tau_365) * K/mid_params.f))*100, 2), "%")
 
 # mid_params.plot_smile_K()  # Plot the implied volatility smile for the SPI model
 

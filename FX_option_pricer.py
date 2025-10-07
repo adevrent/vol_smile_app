@@ -143,7 +143,7 @@ class OptionParams:
         else:
             return "PUT"
 
-    def calc_strike(self, call_put, sigma, delta, eps=1e-6, max_iter=10000):
+    def calc_strike(self, call_put, sigma, delta, eps=1e-3, max_iter=10000):
         if call_put.lower() == "call":
             phi = 1
         else:
@@ -166,8 +166,12 @@ class OptionParams:
             the same strike"""
             K_npa = self.x * np.exp(-phi * ss.norm.ppf(phi * np.exp(self.rf*self.tau_360) * delta_S) * sigma * np.sqrt(self.tau_365) + sigma * theta_plus * self.tau_365)
             # print("K_npa:", K_npa)
-            K_max = K_npa
-            K_min = self.solve_K_min(sigma, K_max, eps=eps, max_iter=1000)
+            K_max = K_npa * 1.1
+            if call_put.lower() == "call":
+                K_min = self.K_ATM
+            else:
+                K_min = self.solve_K_min(sigma, K_max, eps=eps, max_iter=1000)
+
 
             # print("K_min:", K_min)
             # print("K_max:", K_max)
@@ -184,13 +188,13 @@ class OptionParams:
                 # print()
                 return delta_S_pa - delta
 
-            K_array = np.linspace(K_min * 0.8, K_max * 1.2, 1000)
+            K_array = np.linspace(K_min, K_max, 1000)
             f_array = np.vectorize(f)(K_array)
             sign_flip_indexes = get_sign_flip_indexes(f_array)
 
             if sign_flip_indexes is None:
                 # No sign flip
-                # ## DEBUG ##
+                ## DEBUG #R#
                 # plt.plot(K_array, f_array, label='Objective Function')
                 # plt.grid()
                 # plt.xlabel("Strike K")
@@ -201,7 +205,7 @@ class OptionParams:
                 return K_npa
 
             # Adaptive bracket expansion
-            max_expansions = 10
+            max_expansions = 1
             expansions = 0
 
             while expansions < max_expansions:
@@ -764,53 +768,53 @@ def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_sp
                "MID": [f"%{np.round(sigma_K_mid * 100, 5)}", f"%{np.round(v_for_mid * 100, 5)}"]}
 
     df = pd.DataFrame(df_dict, index=["sigma", "v_for"])
-    print(df)
-    print()
+    # print(df)
+    # print()
     # print("bid_ATM_v_for: %", np.round(bid_ATM_v_for*100, 5))
     # print("ask_ATM_v_for: %", np.round(ask_ATM_v_for*100, 5))
     # print("ATM_v_for_diff: %", np.round(ATM_v_for_diff*100, 5))
     # print("v_for diff: %", np.round((v_for_ask - v_for_bid)*100, 4))
     return df, mid_params
 
-# # DEBUG
-# buy_sell = "BUY"
-# call_put = "CALL"
-# K = 46.0
+# DEBUG
+buy_sell = "BUY"
+call_put = "CALL"
+K = 46.0
 
-# rd_spread = 0.0 / 100
-# rf_spread = 0.0 / 100
-# ATM_vol_spread = 3 / 100
+rd_spread = 0.0 / 100
+rf_spread = 0.0 / 100
+ATM_vol_spread = 3 / 100
 
-# calendar = ql.Turkey()
-# basis_dict = {"FOR": ql.Actual360(), "DOM": ql.Actual365Fixed()}
-# spot_bd = 1
-# eval_date = ql.Date(7, 10, 2025)
-# expiry_date = ql.Date(7, 11, 2025)
-# delivery_date = ql.Date(10, 11, 2025)
-# x = 41.7010
-# rd_simple = 39.797 / 100
-# rf_simple = 4.0910 / 100
-# sigma_ATM = 14.29 / 100  # ATM volatility
-# sigma_RR = 18 / 100  # Risk Reversal volatility
-# sigma_SQ = 1.5 / 100  # Quoted Strangle volatility
-# convention = "Convention A"
-# dom_currency = "TRY"
+calendar = ql.Turkey()
+basis_dict = {"FOR": ql.Actual360(), "DOM": ql.Actual365Fixed()}
+spot_bd = 1
+eval_date = ql.Date(7, 10, 2025)
+expiry_date = ql.Date(7, 11, 2025)
+delivery_date = ql.Date(10, 11, 2025)
+x = 41.7010
+rd_simple = 39.797 / 100
+rf_simple = 4.0910 / 100
+sigma_ATM = 14.29 / 100  # ATM volatility
+sigma_RR = 18 / 100  # Risk Reversal volatility
+sigma_SQ = 1.5 / 100  # Quoted Strangle volatility
+convention = "Convention A"
+dom_currency = "TRY"
 
-# if convention == "Convention B":
-#     K_ATM_convention = "fwd"
-#     delta_convention = "spot"
-# elif convention == "Convention A":
-#     K_ATM_convention = "fwd_delta_neutral"
-#     delta_convention = "spot_pa"
+if convention == "Convention B":
+    K_ATM_convention = "fwd"
+    delta_convention = "spot"
+elif convention == "Convention A":
+    K_ATM_convention = "fwd_delta_neutral"
+    delta_convention = "spot_pa"
 
-# delta_tilde = 0.25  # pillar smile delta, e.g. 0.25 or 0.10
+delta_tilde = 0.25  # pillar smile delta, e.g. 0.25 or 0.10
 
-# df, mid_params = calc_tx_with_spreads(
-#     buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_spread,
-#     calendar, basis_dict, spot_bd, eval_date, expiry_date,
-#     delivery_date, x, rd_simple, rf_simple, sigma_ATM, sigma_RR,
-#     sigma_SQ, delta_tilde=delta_tilde, K_ATM_convention=K_ATM_convention,
-#     delta_convention=delta_convention, dom_currency=dom_currency)
+df, mid_params = calc_tx_with_spreads(
+    buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_spread,
+    calendar, basis_dict, spot_bd, eval_date, expiry_date,
+    delivery_date, x, rd_simple, rf_simple, sigma_ATM, sigma_RR,
+    sigma_SQ, delta_tilde=delta_tilde, K_ATM_convention=K_ATM_convention,
+    delta_convention=delta_convention, dom_currency=dom_currency)
 
 # mid_params.print_results()
 

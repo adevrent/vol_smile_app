@@ -1,4 +1,4 @@
-from test_FX_option_pricer import calc_tx_with_spreads
+from FX_option_pricer import calc_tx_with_spreads
 import QuantLib as ql
 import numpy as np
 import matplotlib.pyplot as plt
@@ -18,17 +18,17 @@ ATM_vol_spread = 3 / 100
 calendar = ql.Turkey()
 basis_dict = {"FOR": ql.Actual360(), "DOM": ql.Actual365Fixed()}
 spot_bd = 1
-eval_date = ql.Date(21, 8, 2025)
+eval_date = ql.Date(7, 10, 2025)
 days_arr = np.array([30, 60, 90, 180, 270, 360])
 
-x = 40.94
-rd_simple = 41.16 / 100
-rf_simple = 4.35 / 100
+x = 41.703
+rd_simple = 39.797 / 100
+rf_simple = 4.091 / 100
 
 RR_ATM_ratios = np.array([0.8, 1.0, 1.2, 1.4])
 sigma_RR_arr = np.arange(12, 26, 2) / 100  # Quoted Risk Reversal volatilities
 
-sigma_SQ = 2.26 / 100  # Quoted Strangle volatility
+sigma_SQ = 1.5 / 100  # Quoted Strangle volatility
 convention = "Convention A"
 
 if convention == "Convention B":

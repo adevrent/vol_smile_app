@@ -607,6 +607,8 @@ class OptionParams:
         plt.plot(K_arr, sigmas, label='SPI Smile (%)', color='blue')
         plt.axhline(self.sigma_ATM*100, color='red', linestyle='--', label='ATM Volatility')
         plt.axhline(self.sigma_SM*100, color='green', linestyle='--', label='Market Strangle Volatility')
+        plt.axvline(self.K_C, color='purple', linestyle='--', label='K_25C')
+        plt.axvline(self.K_P, color='purple', linestyle='--', label='K_25P')
         plt.title('SPI Implied Volatility Smile')
         plt.xlabel('Strike')
         plt.ylabel('Implied Volatility')
@@ -803,14 +805,14 @@ elif convention == "Convention A":
 
 delta_tilde = 0.25  # pillar smile delta, e.g. 0.25 or 0.10
 
-# df, mid_params = calc_tx_with_spreads(
-#     buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_spread,
-#     calendar, basis_dict, spot_bd, eval_date, expiry_date,
-#     delivery_date, x, rd_simple, rf_simple, sigma_ATM, sigma_RR,
-#     sigma_SQ, delta_tilde=delta_tilde, K_ATM_convention=K_ATM_convention,
-#     delta_convention=delta_convention, dom_currency=dom_currency)
+df, mid_params = calc_tx_with_spreads(
+    buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_spread,
+    calendar, basis_dict, spot_bd, eval_date, expiry_date,
+    delivery_date, x, rd_simple, rf_simple, sigma_ATM, sigma_RR,
+    sigma_SQ, delta_tilde=delta_tilde, K_ATM_convention=K_ATM_convention,
+    delta_convention=delta_convention, dom_currency=dom_currency)
 
-# mid_params.plot_smile_K()  # Plot the implied volatility smile for the SPI model
+mid_params.plot_smile_K()  # Plot the implied volatility smile for the SPI model
 
 
 # # run the calculation

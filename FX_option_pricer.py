@@ -81,12 +81,17 @@ class OptionParams:
         if K_ATM_convention.lower() == "fwd":
             self.K_ATM = self.f
         elif K_ATM_convention.lower() == "fwd_delta_neutral":
-            if dom_currency.lower() == "try":
-                self.K_ATM = self.f * np.exp(-0.5 * self.sigma_ATM**2 * self.tau_365)
-            else:
+            if dom_currency.lower() == "usd":
                 self.K_ATM = self.f * np.exp(0.5 * self.sigma_ATM**2 * self.tau_365)
+            else:
+                self.K_ATM = self.f * np.exp(-0.5 * self.sigma_ATM**2 * self.tau_365)
         elif K_ATM_convention.lower() == "spot":
             self.K_ATM = self.x
+
+        print("f:", np.round(self.f, 4))
+        print("sigma_ATM:", np.round(self.sigma_ATM*100, 4), "%")
+        print("tau:", np.round(self.tau_365, 4))
+        print("K_ATM:", np.round(self.K_ATM, 4))
 
         if delta_convention.lower() == "spot":
             self.delta_ATM = self.BS("CALL", self.K_ATM, self.sigma_ATM)["delta_S"]
@@ -783,8 +788,8 @@ def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_sp
 
 # # DEBUG
 # buy_sell = "BUY"
-# call_put = "PUT"
-# K = 41.0
+# call_put = "CALL"
+# K = 46.0
 
 # rd_spread = 0.0 / 100
 # rf_spread = 0.0 / 100
@@ -793,15 +798,15 @@ def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_sp
 # calendar = ql.Turkey()
 # basis_dict = {"FOR": ql.Actual360(), "DOM": ql.Actual360()}
 # spot_bd = 1
-# eval_date = ql.Date(23, 9, 2025)
-# expiry_date = ql.Date(23, 12, 2025)
-# delivery_date = ql.Date(24, 12, 2025)
-# x = 41.41
-# rd_simple = 39.93 / 100
-# rf_simple = 4.01 / 100
-# sigma_RR = 12.50 / 100  # Risk Reversal volatility
-# sigma_ATM = 13 / 100  # ATM volatility
-# sigma_SQ = 2.0 / 100  # Quoted Strangle volatility
+# eval_date = ql.Date(7, 10, 2025)
+# expiry_date = ql.Date(7, 11, 2025)
+# delivery_date = ql.Date(10, 11, 2025)
+# x = 41.7010
+# rd_simple = 39.97 / 100
+# rf_simple = 4.0910 / 100
+# sigma_RR = 18 / 100  # Risk Reversal volatility
+# sigma_ATM = 14.29 / 100  # ATM volatility
+# sigma_SQ = 1.5 / 100  # Quoted Strangle volatility
 # convention = "Convention A"
 # dom_currency = "TRY"
 

@@ -126,6 +126,8 @@ if st.button("Compute"):
     ax.plot(K_arr, sigmas, label='SPI Smile (%)', color='blue')
     ax.axhline(mid_params.sigma_ATM * 100, color='red', linestyle='--', label='ATM Volatility')
     ax.axhline(mid_params.sigma_SM * 100, color='green', linestyle='--', label='Market Strangle Volatility')
+    ax.axvline(mid_params.K_C, color='purple', linestyle='--', label='K_25C')
+    ax.axvline(mid_params.K_P, color='purple', linestyle='--', label='K_25P')
     ax.set_title('SPI Implied Volatility Smile')
     ax.set_xlabel('Strike')
     ax.set_ylabel('Implied Volatility (%)')
@@ -133,3 +135,16 @@ if st.button("Compute"):
     ax.grid(True)
 
     st.pyplot(fig)
+
+    # ---- Capture and display print_results output ----
+    import io
+    import contextlib
+
+    st.subheader("Model Diagnostics & Restrictions")
+    output_buffer = io.StringIO()
+    with contextlib.redirect_stdout(output_buffer):
+        mid_params.print_results()
+    results_text = output_buffer.getvalue()
+
+    # Show in Streamlit
+    st.code(results_text, language='text')

@@ -44,6 +44,7 @@ sigma_ATM_str = st.text_input("ATM VOL (%)", placeholder="e.g. 12.00")
 sigma_RR_str  = st.text_input("RR VOL (%)", placeholder="e.g. 13.00")
 sigma_SQ_str  = st.text_input("BF VOL (%)", placeholder="e.g. 1.75")
 
+
 # 4) Pillar delta
 pillar_choices = [0.10, 0.25]
 delta_tilde   = st.selectbox("Pillar Delta", pillar_choices, index=0)
@@ -111,3 +112,22 @@ if st.button("Compute"):
     st.text(f"Delta convention: {delta_convention}")
     st.text(f"@{K:.3f} {buy_sell} {call_put} results :")
     st.table(df)
+
+    # Plot the smile
+    st.subheader("Implied Volatility Smile")
+
+    # Prepare the figure manually to intercept Streamlit
+    fig, ax = plt.subplots(figsize=(10, 6))
+    K_arr = np.linspace(mid_params.K_ATM * 0.9, mid_params.K_ATM * 1.2, 20)
+    sigmas = np.array([mid_params.find_SPI_sigma_K(mid_params.simple_call_put(K), K) * 100 for K in K_arr])
+
+    ax.plot(K_arr, sigmas, label='SPI Smile (%)', color='blue')
+    ax.axhline(mid_params.sigma_ATM * 100, color='red', linestyle='--', label='ATM Volatility')
+    ax.axhline(mid_params.sigma_SM * 100, color='green', linestyle='--', label='Market Strangle Volatility')
+    ax.set_title('SPI Implied Volatility Smile')
+    ax.set_xlabel('Strike')
+    ax.set_ylabel('Implied Volatility (%)')
+    ax.legend()
+    ax.grid(True)
+
+    st.pyplot(fig)

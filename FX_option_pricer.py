@@ -88,11 +88,6 @@ class OptionParams:
         elif K_ATM_convention.lower() == "spot":
             self.K_ATM = self.x
 
-        print("f:", np.round(self.f, 4))
-        print("sigma_ATM:", np.round(self.sigma_ATM*100, 4), "%")
-        print("tau:", np.round(self.tau_365, 4))
-        print("K_ATM:", np.round(self.K_ATM, 4))
-
         if delta_convention.lower() == "spot":
             self.delta_ATM = self.BS("CALL", self.K_ATM, self.sigma_ATM)["delta_S"]
         elif delta_convention.lower() == "spot_pa":
@@ -103,22 +98,21 @@ class OptionParams:
 
         # SPI params
         self.delta_tilde = delta_tilde  # delta_tilde is the pillar smile delta, e.g. 0.25 or 0.10
-        # print("...." * 50)
-        # print("Calculating K_CSM")
+        print("...." * 50)
+        print("Calculating K_CSM")
         self.K_CSM = self.calc_strike("CALL", self.sigma_SM, self.delta_tilde)  # Call strike at delta pillar with MARKET STRANGLE VOL !
-        # print("K_CSM:", np.round(self.K_CSM, 2))
-        # print("K_CSM pa delta:", np.round(self.BS("CALL", self.K_CSM, self.sigma_SM)["delta_S_pa"] * 100, 4))
-        # print()
-        # print("Calculating K_PSM")
+        print("K_CSM:", np.round(self.K_CSM, 2))
+        print("K_CSM pa delta:", np.round(self.BS("CALL", self.K_CSM, self.sigma_SM)["delta_S_pa"] * 100, 4))
+        print()
+        print("Calculating K_PSM")
 
         self.K_PSM = self.calc_strike("PUT", self.sigma_SM, -self.delta_tilde)  # Put strike at delta pillar with MARKET STRANGLE VOL !
-        # print("K_PSM:", np.round(self.K_PSM, 2))
-        # print("K_PSM pa delta:", np.round(self.BS("PUT", self.K_PSM, self.sigma_SM)["delta_S_pa"] * 100, 4))
-        # print("...." * 50)
+        print("K_PSM:", np.round(self.K_PSM, 2))
+        print("K_PSM pa delta:", np.round(self.BS("PUT", self.K_PSM, self.sigma_SM)["delta_S_pa"] * 100, 4))
+        print("...." * 50)
 
         # ##### RESTRICTION 3
         self.v_SM = self.BS("CALL", self.K_CSM, self.sigma_SM)["v_dom"] + self.BS("PUT", self.K_PSM, self.sigma_SM)["v_dom"]  # Market Strangle value in domestic currency with MARKET STRANGLE VOL !
-        # print("v_SM:", self.v_SM)
         """
         v(K_CSM, sigma(K_CSM), CALL) + v(K_PSM, sigma(K_PSM), PUT) = self.v_SM
 
@@ -221,7 +215,7 @@ class OptionParams:
                     if np.sign(f_min) != np.sign(f_max):
                         res = root_scalar(f, method='brentq', bracket=[K_min, K_max], xtol=eps, maxiter=100)
                         K = res.root
-                        # print(f"Found K={K:.2f} after {expansions} expansions")
+                        print(f"Found K={K:.2f} after {expansions} expansions")
                         return K
                 except Exception as e:
                     print(f"Root finding failed: {e}")
@@ -318,29 +312,17 @@ class OptionParams:
                 "delta_fwd": delta_fwd,
                 "delta_fwd_pa": delta_fwd_pa}
 
-    def get_vol_from_price(self, v, K, call_put, v_type="for", eps=1e-9, max_iter=10000):
+    def get_vol_from_price(self, v_dom, K, call_put, eps=1e-9, max_iter=10000):
         """
         Find the implied volatility for a given price using the Black-Scholes model.
         """
-        if v_type == "dom":
-            def f(sigma):
-                BS_dom_price = self.BS(call_put, K, sigma)["v_dom"]
-                return BS_dom_price - v
-        else:
-            def f(sigma):
-                BS_dom_price = self.BS(call_put, K, sigma)["v_for"]
-                return BS_dom_price - v
+
+        def f(sigma):
+            return self.BS(call_put, K, sigma)["v_dom"] - v_dom
 
         a, b = 1e-6, 2.0
-        sigma_array = np.linspace(0.00001, 0.5, 100)
-        f_array = np.vectorize(f)(sigma_array)
-        sign_flip_indexes = get_sign_flip_indexes(f_array)
-        if sign_flip_indexes is None:
-            # print("no sign flip at get_vol_from_price")
-            return 1e-12
 
         res = root_scalar(f, method="brentq", bracket=[a, b], xtol=eps, maxiter=max_iter)
-
         return np.maximum(res.root, 1e-12)
 
 
@@ -384,7 +366,7 @@ class OptionParams:
         sigma = self.sigma_ATM + c1*(delta_call - self.delta_ATM) + c2*(delta_call - self.delta_ATM)**2
         return sigma
 
-    def optimize_sigma_S(self, eps=1e-6, max_iter=10000):
+    def optimize_sigma_S(self, eps=1e-9, max_iter=10000):
         """
         Calibrate sigma_S (smile-strangle vol) so that the
         SPI strangle price matches the market strangle value.
@@ -392,8 +374,8 @@ class OptionParams:
         Args:
             eps (float): Tolerance for the optimization, default is 1e-9.
             max_iter (int): Maximum number of iterations, default is 10000.
-        # """
-        # print("*** Optimizing sigma_S ***")
+        """
+        print("*** Optimizing sigma_S ***")
         if self.delta_convention in ["spot", "fwd"]:
             def f(sigma_S):
                 sigma_CSM = self.find_SPI_sigma_K("CALL", self.K_CSM, sigma_S, optimizing_sigma_S=True)
@@ -407,32 +389,30 @@ class OptionParams:
                 # print("    sigma_S optimization objective: %", np.round((v_call + v_put) - self.v_SM, 6)*100)
                 return (v_call + v_put) - self.v_SM
         elif self.delta_convention == "spot_pa":
-            # print("Inside optimize_sigma_S with spot_pa delta convention")
+            print("Inside optimize_sigma_S with spot_pa delta convention")
 
             def f(sigma_S):
-                self.set_K_C_P(sigma_S, optimizing_sigma_S=True)  # Ensure K_C and K_P are set before using a
+                self.set_K_C_P(sigma_S)  # Ensure K_C and K_P are set before using a
                 a = np.exp(-self.rf * self.tau_360) * self.K_P/self.f
-                # print(f"Calculating sigma_CSM with sigma_S={sigma_S*100:.2f}%, K_CSM={self.K_CSM:.2f}:")
                 sigma_CSM = self.find_SPI_sigma_K("CALL", self.K_CSM, sigma_S, a, optimizing_sigma_S=True)
-                # print(f"Calculating sigma_PSM with sigma_S={sigma_S*100:.2f}%, K_PSM={self.K_PSM:.2f}:")
                 sigma_PSM = self.find_SPI_sigma_K("PUT", self.K_PSM, sigma_S, a, optimizing_sigma_S=True)
 
                 if np.isnan(sigma_CSM) or np.isnan(sigma_PSM):
-                    # print("sigma_CSM or sigma_PSM is NaN, returning NaN")
+                    print("sigma_CSM or sigma_PSM is NaN, returning NaN")
                     return np.inf
 
                 v_call = self.BS("CALL", self.K_CSM, sigma_CSM)["v_dom"]
                 v_put = self.BS("PUT",  self.K_PSM, sigma_PSM)["v_dom"]
-                # print("    sigma_S: %", np.round(sigma_S*100, 4))
-                # print("    sigma_S optimization objective: %", np.round((v_call + v_put) - self.v_SM, 4)*100)
+                print("    sigma_S: %", np.round(sigma_S*100, 4))
+                print("    sigma_S optimization objective: %", np.round((v_call + v_put) - self.v_SM, 4)*100)
                 return (v_call + v_put) - self.v_SM
-        # print("Initial sigma_S guess: %", np.round(self.sigma_SQ * 100, 4))
+        print("Initial sigma_S guess: %", np.round(self.sigma_SQ * 100, 4))
         sigma_S_array = np.linspace(-self.sigma_ATM, self.sigma_SQ + 0.1, 10)
         # print("sigma_S_array:", np.round(sigma_S_array, 6))
         f_array = np.vectorize(f)(sigma_S_array)
         # print("f_array:", np.round(f_array, 6))
         sign_flip_indexes = get_sign_flip_indexes(f_array)
-        # print("sign_flip_indexes:", sign_flip_indexes)
+        print("sign_flip_indexes:", sign_flip_indexes)
         # ## DEBUG ##
         # plt.plot(sigma_S_array, f_array, label='sigma_S Objective Function')
         # plt.grid()
@@ -443,15 +423,15 @@ class OptionParams:
 
         if sign_flip_indexes is None:
             # No sign flip, return the initial guess
-            # print("No sign flip found, returning initial sigma_S")
+            print("No sign flip found, returning initial sigma_S")
             return self.sigma_SQ
 
         sigma_S_min = sigma_S_array[sign_flip_indexes[-1]]
         sigma_S_max = sigma_S_array[sign_flip_indexes[-1]+1]
         # sigma_S_min = -(self.sigma_ATM - 0.5 * self.sigma_RR)
         # sigma_S_max = self.sigma_SQ + 0.3
-        # print("sigma_S_min:", np.round(sigma_S_min, 6))
-        # print("sigma_S_max:", np.round(sigma_S_max, 6))
+        print("sigma_S_min:", np.round(sigma_S_min, 6))
+        print("sigma_S_max:", np.round(sigma_S_max, 6))
         # find root
         res = root_scalar(
             f,
@@ -462,16 +442,16 @@ class OptionParams:
             maxiter=max_iter
         )
         sigma_S_opt = res.root
-        # print(f"sigma_S_opt: %{sigma_S_opt*100:.2f}")
+        print(f"sigma_S_opt: %{sigma_S_opt*100:.2f}")
         self.sigma_S = sigma_S_opt  # update the instance variable
-        self.set_K_C_P(self.sigma_S)  # Ensure K_C and K_P are set before using a
+        # self.set_K_C_P(self.sigma_S)  # Ensure K_C and K_P are set before using a
         if self.delta_convention == "spot_pa":
             self.a = np.exp(-self.rf * self.tau_360) * self.K_P/self.f
 
-        # print("sigma_CSM %", np.round(self.find_SPI_sigma_K("CALL", self.K_CSM, sigma_S_opt)*100, 4))
-        # print("sigma_PSM %", np.round(self.find_SPI_sigma_K("PUT", self.K_PSM, sigma_S_opt)*100, 4))
-        # print("    v_SM calc: %", np.round(self.BS("CALL", self.K_CSM, self.find_SPI_sigma_K("CALL", self.K_CSM))["v_dom"] + self.BS("PUT", self.K_PSM, self.find_SPI_sigma_K("PUT", self.K_PSM))["v_dom"], 4)*100)
-        # print("    v_SM market: %", np.round(self.v_SM, 4)*100)
+        print("sigma_CSM %", np.round(self.find_SPI_sigma_K("CALL", self.K_CSM, sigma_S_opt)*100, 4))
+        print("sigma_PSM %", np.round(self.find_SPI_sigma_K("PUT", self.K_PSM, sigma_S_opt)*100, 4))
+        print("    v_SM calc: %", np.round(self.BS("CALL", self.K_CSM, self.find_SPI_sigma_K("CALL", self.K_CSM))["v_dom"] + self.BS("PUT", self.K_PSM, self.find_SPI_sigma_K("PUT", self.K_PSM))["v_dom"], 4)*100)
+        print("    v_SM market: %", np.round(self.v_SM, 4)*100)
 
         return sigma_S_opt
 
@@ -483,7 +463,7 @@ class OptionParams:
             K (float): Strike price for which to find the implied volatility.
         """
 
-        # print(f"-- Inside find_SPI_sigma_K for K={K:.2f} --")
+        print(f"-- Inside find_SPI_sigma_K for K={K:.2f} --")
         if not sigma_S:
             sigma_S = self.sigma_S
 
@@ -491,14 +471,11 @@ class OptionParams:
         if self.delta_convention.lower() == "spot":
             delta_type = "delta_S"
             a = self.a
-            a_K = a
         elif self.delta_convention.lower() == "fwd":
             delta_type = "delta_fwd"
             a = self.a
-            a_K = a
         elif self.delta_convention.lower() == "spot_pa":
             delta_type = "delta_S_pa"
-            a_K = (np.exp(-self.rf * self.tau_365) * K/self.f)
         else:
             raise NotImplementedError(f"Delta convention {self.delta_convention} not implemented.")
 
@@ -511,7 +488,7 @@ class OptionParams:
         def f(sigma):
             if call_put.lower() == "put":
                 delta = self.BS("PUT", K, sigma)[delta_type]
-                call_delta = delta + a_K
+                call_delta = delta + a
             else:
                 call_delta = self.BS("CALL", K, sigma)[delta_type]
             obj = self.calc_sigma_from_delta(call_delta, sigma_S, a) - sigma
@@ -539,7 +516,7 @@ class OptionParams:
                 maxiter=max_iter
             )
             sigma_K = res.root
-            # print(f"BrentQ method used, sigma for K={K:.2f}: %", np.round(sigma_K*100, 2))
+            print(f"BrentQ method used, sigma for K={K:.2f}: %", np.round(sigma_K*100, 2))
             return sigma_K
 
         else:
@@ -548,30 +525,14 @@ class OptionParams:
             sign_flip_indexes = get_sign_flip_indexes(f_array)
 
             if sign_flip_indexes is None:
-                if not optimizing_sigma_S:
-                    raise ValueError(f"No sign flip found in f(sigma) for K={K:.2f}, cannot find root.")
-                else:
-                    # # No sign flip
-                    # ## DEBUG ##
-                    # plt.plot(sigma_array, f_array, label='Objective Function')
-                    # plt.xlabel("Volatility $\sigma$")
-                    # plt.ylabel("Objective function $f(\sigma)$")
-                    # plt.title(f"Sigma_S = %{100*sigma_S:.4f}, K = {K:.4f}")
-                    # plt.grid()
-                    # plt.axhline(0, color='red', linestyle='--', label='Zero Line')
-                    # plt.show()
-
-                    if np.abs(f_array[1:].max()) < 1e-2:
-                        max_idx = np.argmax(f_array[1:])
-                        max_val = f_array[max_idx]
-                        argmax_sigma = sigma_array[max_idx]
-                        # print("max_idx:", max_idx)
-                        # print("max_val:", f"{max_val:.2f}")
-                        # print(f"No sign flip found in f(sigma) for K={K:.2f}, returning sigma: {(argmax_sigma*100):.2f}%, max val f: {max_val:.2f}.")
-                        return argmax_sigma
-                    else:
-                        # print(f"No sign flip found in f(sigma) for K={K:.2f}, cannot find root. Returning 0.1%")
-                        return 1e-3
+                # # No sign flip
+                # ## DEBUG ##
+                # plt.plot(sigma_array, f_array, label='Objective Function')
+                # plt.title(f"Sigma_S = %{100*sigma_S:.4f}, K = {K:.4f}")
+                # plt.grid()
+                # plt.axhline(0, color='red', linestyle='--', label='Zero Line')
+                # plt.show()
+                return 0.01
 
             # print("sign_flip_indexes:", sign_flip_indexes)
 
@@ -586,34 +547,30 @@ class OptionParams:
                 maxiter=max_iter
             )
             sigma_K = res.root
-            # print(f"BrentQ method used, sigma for K={K:.2f}: %", np.round(sigma_K*100, 2))
+            print(f"BrentQ method used, sigma for K={K:.2f}: %", np.round(sigma_K*100, 2))
             return sigma_K
 
         # If we reach here, we didn't find a root in the initial bracket
         # print(f"Failed to find brentq root sigma_K after {expansions} expansions.")
 
-    def set_K_C_P(self, sigma_S=None, optimizing_sigma_S=False):
+    def set_K_C_P(self, sigma_S=None):
         if not sigma_S:
             if not self.sigma_S:
                 raise ValueError("sigma_S not set, cannot calculate K_C and K_P.")
             sigma_S = self.sigma_S
-        # print(f"*** Setting K_C and K_P *** with sigma_S = %{sigma_S*100:.4f} ***")
+        print(f"*** Setting K_C and K_P *** with sigma_S = %{sigma_S*100:.4f} ***")
 
         self.sigma_C = self.sigma_ATM + 0.5 * self.sigma_RR + sigma_S
         self.sigma_P = self.sigma_ATM - 0.5 * self.sigma_RR + sigma_S
 
-        # print("sigma_C %", np.round(self.sigma_C*100, 4))
-        # print("sigma_P %", np.round(self.sigma_P*100, 4))
-
-        if not optimizing_sigma_S:
-            if (self.sigma_C <= 0) or (self.sigma_P <= 0):
-                raise ValueError("Calculated sigma_C or sigma_P is non-positive, cannot calculate K_C and K_P.")
+        print("sigma_C %", np.round(self.sigma_C*100, 4))
+        print("sigma_P %", np.round(self.sigma_P*100, 4))
 
         self.K_C = self.calc_strike("CALL", self.sigma_C, self.delta_tilde)  # Call strike at delta pillar with smile vol
         self.K_P = self.calc_strike("PUT", self.sigma_P, -self.delta_tilde)  # Put strike at delta pillar with smile vol
 
-        # print("K_C:", np.round(self.K_C, 2))
-        # print("K_P:", np.round(self.K_P, 2))
+        print("K_C:", np.round(self.K_C, 2))
+        print("K_P:", np.round(self.K_P, 2))
 
     def print_init(self):
         print("OptionParams initialized with:")
@@ -643,7 +600,7 @@ class OptionParams:
             print("sigma_S not set, optimizing...")
             self.optimize_sigma_S()
 
-        K_arr = np.linspace(self.K_ATM/5, self.K_ATM + self.K_ATM/4, 20)
+        K_arr = np.linspace(self.K_ATM * 9/10, self.K_ATM * 12/10, 20)
         sigmas = np.array([self.find_SPI_sigma_K(self.simple_call_put(K), K)*100 for K in K_arr])
 
         plt.figure(figsize=(10, 6))
@@ -652,6 +609,32 @@ class OptionParams:
         plt.axhline(self.sigma_SM*100, color='green', linestyle='--', label='Market Strangle Volatility')
         plt.title('SPI Implied Volatility Smile')
         plt.xlabel('Strike')
+        plt.ylabel('Implied Volatility')
+        plt.legend()
+        plt.grid()
+        plt.show()
+
+    def plot_smile_delta(self):  # TODO
+        """
+        Plot the implied volatility smile for the SPI model.
+        """
+        if not self.sigma_S:
+            print("sigma_S not set, optimizing...")
+            self.optimize_sigma_S()
+
+        delta_arr_put = np.linspace(-0.01, -0.50, 20)
+        delta_arr_call = np.linspace(0.01, 0.50, 20)
+        sigmas_put = np.array([self.calc_sigma_from_delta(delta, self.sigma_S)*100 if delta > 0 else self.calc_sigma_from_delta(delta + self.a, self.sigma_S)*100 for delta in delta_arr_put])
+        sigmas_call = np.array([self.calc_sigma_from_delta(delta, self.sigma_S)*100 if delta > 0 else self.calc_sigma_from_delta(delta + self.a, self.sigma_S)*100 for delta in delta_arr_call])
+        delta_arr = np.concatenate((delta_arr_put, delta_arr_call))
+        sigmas = np.concatenate((sigmas_put, sigmas_call))
+
+        plt.figure(figsize=(10, 6))
+        plt.plot(sigmas, label='SPI Smile (%)', color='blue')
+        plt.axhline(self.sigma_ATM*100, color='red', linestyle='--', label='ATM Volatility')
+        plt.axhline(self.sigma_SM*100, color='green', linestyle='--', label='Market Strangle Volatility')
+        plt.title('SPI Implied Volatility Smile')
+        plt.xlabel('Delta')
         plt.ylabel('Implied Volatility')
         plt.legend()
         plt.grid()
@@ -736,8 +719,7 @@ def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_sp
     )
 
     mid_params.optimize_sigma_S()  # This will calibrate sigma_S
-    # print("OPTIMIZE SIGMA_S COMPLETE !")
-    mid_params.set_K_C_P()  # This will set K_C and K_P
+    mid_params.set_K_C_P()  # This will set K_C and K_P based
     # mid_params.print_results()  # Print the results of the calibration
 
     K_ATM = mid_params.K_ATM
@@ -749,14 +731,17 @@ def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_sp
     ATM_v_for_diff = ask_ATM_v_for - bid_ATM_v_for
 
     sigma_K_mid = mid_params.find_SPI_sigma_K(call_put, K)
-    # print("sigma_K_mid =", sigma_K_mid)
+    print("sigma_K_mid =", sigma_K_mid)
 
     v_for_mid = np.maximum(mid_params.BS(call_put, K, sigma_K_mid)["v_for"], 1e-12)
     v_for_bid = np.maximum(v_for_mid - ATM_v_for_diff / 2, 1e-12)  # Ensure v_for_bid is not negative
     v_for_ask = v_for_mid + ATM_v_for_diff / 2
 
-    sigma_K_bid = mid_params.get_vol_from_price(v_for_bid, K, call_put, v_type="for")
-    sigma_K_ask = mid_params.get_vol_from_price(v_for_ask, K, call_put, v_type="for")
+    v_dom_bid = v_for_bid * mid_params.x
+    v_dom_ask = v_for_ask * mid_params.x
+
+    sigma_K_bid = mid_params.get_vol_from_price(v_dom_bid, K, call_put)
+    sigma_K_ask = mid_params.get_vol_from_price(v_dom_ask, K, call_put)
 
     if sigma_K_bid > sigma_K_mid:
         sigma_K_bid = np.maximum(sigma_K_bid - (sigma_K_ask - sigma_K_mid), 1e-9)
@@ -777,47 +762,46 @@ def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_sp
                "MID": [f"%{np.round(sigma_K_mid * 100, 5)}", f"%{np.round(v_for_mid * 100, 5)}"]}
 
     df = pd.DataFrame(df_dict, index=["sigma", "v_for"])
-    # print(df)
-    # print()
+    print(df)
+    print()
     # print("bid_ATM_v_for: %", np.round(bid_ATM_v_for*100, 5))
     # print("ask_ATM_v_for: %", np.round(ask_ATM_v_for*100, 5))
     # print("ATM_v_for_diff: %", np.round(ATM_v_for_diff*100, 5))
     # print("v_for diff: %", np.round((v_for_ask - v_for_bid)*100, 4))
     return df, mid_params
 
+# DEBUG
+buy_sell = "BUY"
+call_put = "CALL"
+K = 46.0
 
-# # DEBUG
-# buy_sell = "BUY"
-# call_put = "CALL"
-# K = 46.0
+rd_spread = 0.0 / 100
+rf_spread = 0.0 / 100
+ATM_vol_spread = 3 / 100
 
-# rd_spread = 0.0 / 100
-# rf_spread = 0.0 / 100
-# ATM_vol_spread = 1.5 / 100
+calendar = ql.Turkey()
+basis_dict = {"FOR": ql.Actual360(), "DOM": ql.Actual365Fixed()}
+spot_bd = 1
+eval_date = ql.Date(7, 10, 2025)
+expiry_date = ql.Date(7, 11, 2025)
+delivery_date = ql.Date(10, 11, 2025)
+x = 41.7010
+rd_simple = 39.797 / 100
+rf_simple = 4.0910 / 100
+sigma_ATM = 14.29 / 100  # ATM volatility
+sigma_RR = 18 / 100  # Risk Reversal volatility
+sigma_SQ = 1.5 / 100  # Quoted Strangle volatility
+convention = "Convention A"
+dom_currency = "TRY"
 
-# calendar = ql.Turkey()
-# basis_dict = {"FOR": ql.Actual360(), "DOM": ql.Actual360()}
-# spot_bd = 1
-# eval_date = ql.Date(7, 10, 2025)
-# expiry_date = ql.Date(7, 11, 2025)
-# delivery_date = ql.Date(10, 11, 2025)
-# x = 41.7010
-# rd_simple = 39.97 / 100
-# rf_simple = 4.0910 / 100
-# sigma_RR = 18 / 100  # Risk Reversal volatility
-# sigma_ATM = 14.29 / 100  # ATM volatility
-# sigma_SQ = 1.5 / 100  # Quoted Strangle volatility
-# convention = "Convention A"
-# dom_currency = "TRY"
+if convention == "Convention B":
+    K_ATM_convention = "fwd"
+    delta_convention = "spot"
+elif convention == "Convention A":
+    K_ATM_convention = "fwd_delta_neutral"
+    delta_convention = "spot_pa"
 
-# if convention == "Convention B":
-#     K_ATM_convention = "fwd"
-#     delta_convention = "spot"
-# elif convention == "Convention A":
-#     K_ATM_convention = "fwd_delta_neutral"
-#     delta_convention = "spot_pa"
-
-# delta_tilde = 0.25  # pillar smile delta, e.g. 0.25 or 0.10
+delta_tilde = 0.25  # pillar smile delta, e.g. 0.25 or 0.10
 
 # df, mid_params = calc_tx_with_spreads(
 #     buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_spread,
@@ -825,22 +809,6 @@ def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_sp
 #     delivery_date, x, rd_simple, rf_simple, sigma_ATM, sigma_RR,
 #     sigma_SQ, delta_tilde=delta_tilde, K_ATM_convention=K_ATM_convention,
 #     delta_convention=delta_convention, dom_currency=dom_currency)
-
-# print(df)
-# print("-- CALL --")
-# sigma_call = mid_params.find_SPI_sigma_K("CALL", K, mid_params.sigma_S)
-# print("call vol:")
-# print(np.round(sigma_call*100, 2), "%")
-# print("call delta:")
-# print(np.round(mid_params.BS("CALL", K, sigma_call)["delta_S_pa"] * 100, 2), "%")
-# print("-- PUT --")
-# sigma_put = mid_params.find_SPI_sigma_K("PUT", K, mid_params.sigma_S)
-# print("put vol:")
-# print(np.round(sigma_put*100, 2), "%")
-# print("put delta:")
-# print(np.round(mid_params.BS("PUT", K, sigma_put)["delta_S_pa"] * 100, 2), "%")
-# print("call delta of put (for SPI):")
-# print(np.round((mid_params.BS("PUT", K, sigma_put)["delta_S_pa"] + (np.exp(-mid_params.rf * mid_params.tau_365) * K/mid_params.f))*100, 2), "%")
 
 # mid_params.plot_smile_K()  # Plot the implied volatility smile for the SPI model
 

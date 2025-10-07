@@ -776,46 +776,47 @@ def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_sp
     # print("v_for diff: %", np.round((v_for_ask - v_for_bid)*100, 4))
     return df, mid_params
 
-# DEBUG
-buy_sell = "BUY"
-call_put = "CALL"
-K = 46.0
+# # DEBUG
+# buy_sell = "BUY"
+# call_put = "PUT"
+# K = 35.0
 
-rd_spread = 0.0 / 100
-rf_spread = 0.0 / 100
-ATM_vol_spread = 3 / 100
+# rd_spread = 0.0 / 100
+# rf_spread = 0.0 / 100
+# ATM_vol_spread = 3 / 100
 
-calendar = ql.Turkey()
-basis_dict = {"FOR": ql.Actual360(), "DOM": ql.Actual365Fixed()}
-spot_bd = 1
-eval_date = ql.Date(7, 10, 2025)
-expiry_date = ql.Date(7, 11, 2025)
-delivery_date = ql.Date(10, 11, 2025)
-x = 41.7010
-rd_simple = 39.797 / 100
-rf_simple = 4.0910 / 100
-sigma_ATM = 14.29 / 100  # ATM volatility
-sigma_RR = 18 / 100  # Risk Reversal volatility
-sigma_SQ = 1.5 / 100  # Quoted Strangle volatility
-convention = "Convention A"
-dom_currency = "TRY"
+# calendar = ql.Turkey()
+# basis_dict = {"FOR": ql.Actual360(), "DOM": ql.Actual365Fixed()}
+# spot_bd = 1
+# eval_date = ql.Date(7, 10, 2025)
+# expiry_date = ql.Date(7, 11, 2025)
+# delivery_date = ql.Date(10, 11, 2025)
+# x = 41.7010
+# rd_simple = 39.797 / 100
+# rf_simple = 4.0910 / 100
+# sigma_ATM = 14.29 / 100  # ATM volatility
+# sigma_RR = 18 / 100  # Risk Reversal volatility
+# sigma_SQ = 1.5 / 100  # Quoted Strangle volatility
+# convention = "Convention A"
+# dom_currency = "TRY"
 
-if convention == "Convention B":
-    K_ATM_convention = "fwd"
-    delta_convention = "spot"
-elif convention == "Convention A":
-    K_ATM_convention = "fwd_delta_neutral"
-    delta_convention = "spot_pa"
+# if convention == "Convention B":
+#     K_ATM_convention = "fwd"
+#     delta_convention = "spot"
+# elif convention == "Convention A":
+#     K_ATM_convention = "fwd_delta_neutral"
+#     delta_convention = "spot_pa"
 
-delta_tilde = 0.25  # pillar smile delta, e.g. 0.25 or 0.10
+# delta_tilde = 0.25  # pillar smile delta, e.g. 0.25 or 0.10
 
-df, mid_params = calc_tx_with_spreads(
-    buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_spread,
-    calendar, basis_dict, spot_bd, eval_date, expiry_date,
-    delivery_date, x, rd_simple, rf_simple, sigma_ATM, sigma_RR,
-    sigma_SQ, delta_tilde=delta_tilde, K_ATM_convention=K_ATM_convention,
-    delta_convention=delta_convention, dom_currency=dom_currency)
+# df, mid_params = calc_tx_with_spreads(
+#     buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_spread,
+#     calendar, basis_dict, spot_bd, eval_date, expiry_date,
+#     delivery_date, x, rd_simple, rf_simple, sigma_ATM, sigma_RR,
+#     sigma_SQ, delta_tilde=delta_tilde, K_ATM_convention=K_ATM_convention,
+#     delta_convention=delta_convention, dom_currency=dom_currency)
 
+# print(df)
 # mid_params.print_results()
 
 # delta_option = mid_params.BS(call_put, K, mid_params.find_SPI_sigma_K(call_put, K))["delta_S_pa"]

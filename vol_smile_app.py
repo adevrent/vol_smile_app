@@ -107,6 +107,8 @@ if st.button("Compute"):
     # display
     st.text(f"Forward Parity: {np.round(mid_params.f, 4)}")
     st.text(f"K_ATM: {np.round(mid_params.K_ATM, 4)}")
+    st.text(f"K_25C: {np.round(mid_params.K_C, 4)}")
+    st.text(f"K_25P: {np.round(mid_params.K_P, 4)}")
     st.text("")
     st.text(f"ATM Strike Convention: {K_ATM_convention}")
     st.text(f"Delta convention: {delta_convention}")

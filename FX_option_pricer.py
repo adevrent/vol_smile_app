@@ -496,13 +496,8 @@ class OptionParams:
                 a = self.a
 
         def f(sigma):
-            if call_put.lower() == "put":
-                delta = self.BS("PUT", K, sigma)[delta_type]
-                call_delta = delta + a
-            else:
-                call_delta = self.BS("CALL", K, sigma)[delta_type]
+            call_delta = self.BS("CALL", K, sigma)[delta_type]
             obj = self.calc_sigma_from_delta(call_delta, sigma_S, a) - sigma
-            # obj = self.sigma_ATM + c1 * (call_delta - self.delta_ATM) + c2 * (call_delta - self.delta_ATM)**2 - sigma
             return obj
 
         vol_min = 1e-12
@@ -610,7 +605,7 @@ class OptionParams:
             # print("sigma_S not set, optimizing...")
             self.optimize_sigma_S()
 
-        K_arr = np.linspace(self.K_ATM * 9/10, self.K_ATM * 12/10, 20)
+        K_arr = np.linspace(self.K_ATM * 7/10, self.K_ATM * 13/10, 20)
         sigmas = np.array([self.find_SPI_sigma_K(self.simple_call_put(K), K)*100 for K in K_arr])
 
         plt.figure(figsize=(10, 6))
@@ -692,6 +687,7 @@ class OptionParams:
         print("delta K_C = %", np.round(self.BS("CALL", self.K_C, self.sigma_C)[delta_conventions_mapping[self.delta_convention]] * 100, 4))
         print("K_P =", np.round(self.K_P, 4))
         print("delta K_P = %", np.round(self.BS("PUT", self.K_P, self.sigma_P)[delta_conventions_mapping[self.delta_convention]] * 100, 4))
+        print("a =", np.round(self.a, 4))
 
 def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_spread, calendar, basis_dict, spot_bd, eval_date, expiry_date, delivery_date, x, rd_simple, rf_simple, sigma_ATM, sigma_RR, sigma_SQ, delta_tilde=0.25, K_ATM_convention="fwd", delta_convention="fwd_pa", dom_currency="TRY"):
     rd_bid = rd_simple - rd_spread / 2
@@ -796,24 +792,24 @@ def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_sp
 # # DEBUG
 # buy_sell = "BUY"
 # call_put = "PUT"
-# K = 35.0
+# K = 60
 
 # rd_spread = 0.0 / 100
 # rf_spread = 0.0 / 100
-# ATM_vol_spread = 3 / 100
+# ATM_vol_spread = 1.5 / 100
 
 # calendar = ql.Turkey()
 # basis_dict = {"FOR": ql.Actual360(), "DOM": ql.Actual365Fixed()}
 # spot_bd = 1
-# eval_date = ql.Date(7, 10, 2025)
-# expiry_date = ql.Date(7, 11, 2025)
-# delivery_date = ql.Date(10, 11, 2025)
-# x = 41.7010
-# rd_simple = 39.797 / 100
-# rf_simple = 4.0910 / 100
-# sigma_ATM = 14.29 / 100  # ATM volatility
-# sigma_RR = 18 / 100  # Risk Reversal volatility
-# sigma_SQ = 1.5 / 100  # Quoted Strangle volatility
+# eval_date = ql.Date(8, 10, 2025)
+# expiry_date = ql.Date(3, 9, 2026)
+# delivery_date = ql.Date(6, 9, 2026)
+# x = 41.7150
+# rd_simple = 41.70 / 100
+# rf_simple = 3.62 / 100
+# sigma_ATM = 19.05 / 100  # ATM volatility
+# sigma_RR = 13.17 / 100  # Risk Reversal volatility
+# sigma_SQ = 2.45 / 100  # Quoted Strangle volatility
 # convention = "Convention A"
 # dom_currency = "TRY"
 
@@ -837,9 +833,9 @@ def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_sp
 # mid_params.print_results()
 
 # delta_option = mid_params.BS(call_put, K, mid_params.find_SPI_sigma_K(call_put, K))["delta_S_pa"]
-# call_delta_option = delta_option if call_put.lower() == "call" else delta_option + mid_params.a
+# call_delta_option = mid_params.BS("CALL", K, mid_params.find_SPI_sigma_K("CALL", K))["delta_S_pa"]
 # print(f"{buy_sell} {call_put} @ {K}, delta = %", np.round(delta_option * 100, 4))
-# print(f" 'call' delta of the option = %", np.round(call_delta_option * 100, 4))
+# print(f" 'call delta' of the option = %", np.round(call_delta_option * 100, 4))
 
 # print()
 

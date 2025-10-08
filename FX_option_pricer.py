@@ -785,6 +785,13 @@ def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_sp
     # print("ask_ATM_v_for: %", np.round(ask_ATM_v_for*100, 5))
     # print("ATM_v_for_diff: %", np.round(ATM_v_for_diff*100, 5))
     # print("v_for diff: %", np.round((v_for_ask - v_for_bid)*100, 4))
+
+    sigma_C = mid_params.find_SPI_sigma_K("CALL", mid_params.K_C)
+    sigma_P = mid_params.find_SPI_sigma_K("PUT", mid_params.K_P)
+    sigma_RR_calc = sigma_C - sigma_P
+    if np.abs(sigma_RR_calc - sigma_RR) > 1e-3:
+        raise ValueError(f"Convergence failure by Restriction 2: sigma_RR_calc {sigma_RR_calc*100:.2f}% != sigma_RR {sigma_RR*100:.2f}%")
+
     return df, mid_params
 
 # # DEBUG

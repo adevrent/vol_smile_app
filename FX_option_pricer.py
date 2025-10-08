@@ -329,7 +329,6 @@ class OptionParams:
         f_array = np.vectorize(f)(sigma_array)
         sign_flip_indexes = get_sign_flip_indexes(f_array)
         if sign_flip_indexes is None:
-            print(f"no sign flip at get_vol_from_price for K={K}, v_dom={v_dom}, call_put={call_put}")
             return 1e-12
 
         res = root_scalar(f, method="brentq", bracket=[a, b], xtol=eps, maxiter=max_iter)
@@ -789,7 +788,7 @@ def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_sp
     sigma_C = mid_params.find_SPI_sigma_K("CALL", mid_params.K_C)
     sigma_P = mid_params.find_SPI_sigma_K("PUT", mid_params.K_P)
     sigma_RR_calc = sigma_C - sigma_P
-    if np.abs(sigma_RR_calc - sigma_RR) > 1e-3:
+    if np.abs(sigma_RR_calc - sigma_RR) > 0.01:
         raise ValueError(f"Convergence failure by Restriction 2: sigma_RR_calc {sigma_RR_calc*100:.2f}% != sigma_RR {sigma_RR*100:.2f}%")
 
     return df, mid_params

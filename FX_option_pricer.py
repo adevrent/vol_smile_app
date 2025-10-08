@@ -791,7 +791,7 @@ def calc_tx_with_spreads(buy_sell, call_put, K, rd_spread, rf_spread, ATM_vol_sp
 
 # # DEBUG
 # buy_sell = "BUY"
-# call_put = "PUT"
+# call_put = "CALL"
 # K = 60
 
 # rd_spread = 0.0 / 100

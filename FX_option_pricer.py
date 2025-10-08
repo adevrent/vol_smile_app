@@ -332,6 +332,9 @@ class OptionParams:
             print(f"no sign flip at get_vol_from_price for K={K}, v_dom={v_dom}, call_put={call_put}")
             return 1e-12
 
+        res = root_scalar(f, method="brentq", bracket=[a, b], xtol=eps, maxiter=max_iter)
+
+        return np.maximum(res.root, 1e-12)
 
     def calc_c1(self, sigma_S, a=None):
         """
@@ -371,9 +374,10 @@ class OptionParams:
         c1 = self.calc_c1(sigma_S, a)
         c2 = self.calc_c2(sigma_S, a)
         sigma = self.sigma_ATM + c1*(delta_call - self.delta_ATM) + c2*(delta_call - self.delta_ATM)**2
+
         return sigma
 
-    def optimize_sigma_S(self, eps=1e-9, max_iter=10000):
+    def optimize_sigma_S(self, eps=1e-6, max_iter=10000):
         """
         Calibrate sigma_S (smile-strangle vol) so that the
         SPI strangle price matches the market strangle value.

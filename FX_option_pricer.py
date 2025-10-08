@@ -655,6 +655,10 @@ class OptionParams:
 
     def print_results(self):
         print("-" * 50)
+        print("K_CSM":, np.round(self.K_CSM, 2))
+        print("K_PSM:", np.round(self.K_PSM, 2))
+        print("sigma_SM %", np.round(self.sigma_SM*100, 4))
+        print("-" * 50)
         print("Delta pillars:")
         print("K_C:", np.round(self.K_C, 2))
         print("K_P:", np.round(self.K_P, 2))

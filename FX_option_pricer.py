@@ -325,9 +325,12 @@ class OptionParams:
             return self.BS(call_put, K, sigma)["v_dom"] - v_dom
 
         a, b = 1e-6, 2.0
-
-        res = root_scalar(f, method="brentq", bracket=[a, b], xtol=eps, maxiter=max_iter)
-        return np.maximum(res.root, 1e-12)
+        sigma_array = np.linspace(0.00001, 0.5, 100)
+        f_array = np.vectorize(f)(sigma_array)
+        sign_flip_indexes = get_sign_flip_indexes(f_array)
+        if sign_flip_indexes is None:
+            print(f"no sign flip at get_vol_from_price for K={K}, v_dom={v_dom}, call_put={call_put}")
+            return 1e-12
 
 
     def calc_c1(self, sigma_S, a=None):
